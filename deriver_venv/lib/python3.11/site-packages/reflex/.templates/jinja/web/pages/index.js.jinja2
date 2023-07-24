@@ -1,0 +1,102 @@
+{% extends "web/pages/base_page.js.jinja2" %}
+
+{% block declaration %}
+{% for custom_code in custom_codes %}
+{{custom_code}}
+{% endfor %}
+{% endblock %}
+
+{% block export %}
+export default function Component() {
+  const [{{state_name}}, {{state_name|react_setter}}] = useState({{initial_state|json_dumps}})
+  const [{{const.result}}, {{const.result|react_setter}}] = useState({{const.initial_result|json_dumps}})
+  const [notConnected, setNotConnected] = useState(false)
+  const {{const.router}} = useRouter()
+  const {{const.socket}} = useRef(null)
+  const { isReady } = {{const.router}}
+  const { {{const.color_mode}}, {{const.toggle_color_mode}} } = {{const.use_color_mode}}()
+  const focusRef = useRef();
+  
+  // Function to add new events to the event queue.
+  const Event = (events, _e) => {
+      preventDefault(_e);
+      {{state_name|react_setter}}(state => ({
+        ...state,
+        events: [...state.events, ...events],
+      }))
+  }
+
+  // Function to add new files to be uploaded.
+  const File = files => {{state_name|react_setter}}(state => ({
+    ...state,
+    files,
+  }))
+
+  // Main event loop.
+  useEffect(()=> {
+    // Skip if the router is not ready.
+    if (!isReady) {
+      return;
+    }
+
+    // Initialize the websocket connection.
+    if (!{{const.socket}}.current) {
+      connect({{const.socket}}, {{state_name}}, {{state_name|react_setter}}, {{const.result}}, {{const.result|react_setter}}, {{const.router}}, {{transports}}, setNotConnected)
+    }
+
+    // If we are not processing an event, process the next event.
+    if (!{{const.result}}.{{const.processing}}) {
+      processEvent({{state_name}}, {{state_name|react_setter}}, {{const.result}}, {{const.result|react_setter}}, {{const.router}}, {{const.socket}}.current)
+    }
+
+    // If there is a new result, update the state.
+    if ({{const.result}}.{{const.state}} != null) {
+      // Apply the new result to the state and the new events to the queue.
+      {{state_name|react_setter}}(state => ({
+        ...{{const.result}}.{{const.state}},
+        events: [...state.{{const.events}}, ...{{const.result}}.{{const.events}}],
+      }))
+
+      // Reset the result.
+      {{const.result|react_setter}}(result => ({
+        {{const.state}}: null,
+        {{const.events}}: [],
+        {{const.final}}: true,
+        {{const.processing}}: !{{const.result}}.{{const.final}},
+      }))
+
+      // Process the next event.
+      processEvent({{state_name}}, {{state_name|react_setter}}, {{const.result}}, {{const.result|react_setter}}, {{const.router}}, {{const.socket}}.current)
+    }
+  })
+
+  // Set focus to the specified element.
+  useEffect(() => {
+    if (focusRef.current) {
+      focusRef.current.focus();
+    }
+  })
+
+  // Route after the initial page hydration.
+  useEffect(() => {
+    const change_complete = () => Event([E('{{state_name}}.{{const.hydrate}}', {})])
+    {{const.router}}.events.on('routeChangeComplete', change_complete)
+    return () => {
+      {{const.router}}.events.off('routeChangeComplete', change_complete)
+    }
+  }, [{{const.router}}])
+
+  {% for hook in hooks %}
+  {{ hook }}
+  {% endfor %}
+
+  return (
+  <Fragment>
+      {%- if err_comp -%}
+            {{ utils.render(err_comp, indent_width=1) }}
+       {%- endif -%}
+    {{utils.render(render, indent_width=0)}}
+    </Fragment>
+  )
+}
+{% endblock %}
