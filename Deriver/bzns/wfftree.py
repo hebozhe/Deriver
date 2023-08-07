@@ -14,6 +14,8 @@ from primitives import (
     EQ,
     PREDS,
     VER,
+    Rulable,
+    get_rulable,
 )
 
 
@@ -141,13 +143,19 @@ class WffTree:
     """
 
     def __init__(self, wff: str) -> None:
-        self.wff: str = clean(wff=wff)
+        # This is a special carve-out for assumption place-holders, e.g. "[a]", "[A]", "[1]"
+        self.wff: str
+        if len(wff) == 3 and wff[0] == "[" and wff[-1] == "]":
+            self.wff = wff
+            return None
+
+        self.wff = clean(wff=wff)
 
         pos, _, mop = main_op(wff=self.wff)
-        self.mop: str = mop
 
-        self.val: int
-        self.var: str
+        self.mop: Rulable  # The saved main operator.
+        self.val: int  # The valency of the main operator, 0 if atomic.
+        self.var: str  # The variable of the quantifier, if self.mop is in QUANTS.
         self.left: WffTree
         self.right: WffTree
         self.args: tuple[str, ...]
@@ -156,24 +164,29 @@ class WffTree:
             self.val = 0
             return None
 
-        if self.mop in BINOPS:  # Binary sentences.
+        if mop in BINOPS:  # Binary sentences.
+            self.mop = get_rulable(prim=mop)
             self.val = 2
             self.left = WffTree(wff=clean(wff=self.wff[:pos]))
             self.right = WffTree(wff=clean(wff=self.wff[pos + 1 :]))
             return None
 
-        if self.mop in UNOPS:  # Unary sentences.
+        if mop in UNOPS:  # Unary sentences.
+            self.mop = get_rulable(prim=mop)
             self.val = 1
             self.right = WffTree(wff=clean(wff=self.wff[pos + 1 :]))
             return None
 
-        if self.mop in QUANTS:  # Quantifier sentences.
+        if mop in QUANTS:  # Quantifier sentences.
+            self.mop = get_rulable(prim=mop)
             self.val = 1
             self.var = wff[pos + 1]
             self.right = WffTree(wff=clean(wff=self.wff[pos + 2 :]))
             return None
 
-        if self.mop in f"{PREDS}{EQ}":  # Atomic predicates and equality.
+        if mop in f"{PREDS}{EQ}":  # Atomic predicates and equality.
+            if mop == EQ:
+                self.mop = get_rulable(prim=mop)
             self.val = 0
             self.args = tuple()
 
@@ -192,6 +205,10 @@ class WffTree:
                     span_len += 1
             return None
 
+        if self.mop in f"{VER}{FAL}":  # Verum and falsum.
+            self.val = 0
+            self.args = tuple()
+
     def __str__(self) -> str:
         return self.wff
 
@@ -202,23 +219,45 @@ class WffTree:
         Returns:
             str: The square-bracket-annoted parse tree.
         """
+        if not hasattr(self, "mop"):
+            if hasattr(self, "args"):
+                jargs: str = (
+                    "] [".join(self.args) if len(self.args) > 1 else "".join(self.args)
+                )
+                return f"[{self.mop} [{jargs}]]"
+            return f"[{self.wff}]"
         if self.mop in BINOPS:
             return f"[{self.mop} {repr(self.left)} {repr(self.right)}]"
         elif self.mop in UNOPS:
             return f"[{self.mop} {repr(self.right)}]"
         elif self.mop in QUANTS:
             return f"[{self.mop}{self.var} {repr(self.right)}]"
-        elif "args" in self.__dict__:
-            jargs: str = (
-                "] [".join(self.args) if len(self.args) > 1 else "".join(self.args)
-            )
-            return f"[{self.mop} [{jargs}]]"
         else:
             return f"[{self.wff}]"
 
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, WffTree):
+            raise TypeError("WffTree objects must be compared to WffTree objects.")
+        return self.wff == __value.wff
+
+
+def has_mop(tree: WffTree, mop: Rulable) -> bool:
+    """
+    Check whether a given WffTree has a certain operator.
+
+    Args:
+        tree (WffTree): The object representing a well-formed formula.
+        mop (Rulable): The main operator being checked.
+
+    Returns:
+        bool: False if tree either has no main operator or if it's not equal to mop,
+            True otherwise.
+    """
+    return hasattr(tree, "mop") and tree.mop == mop
+
 
 if __name__ == "__main__":
-    test_wff: str = "a=b↔Aa«B»b"
+    test_wff: str = "j=k↔Aa«B»b"
     print(clean(wff=test_wff))
     print(repr(WffTree(wff=test_wff)))
     print((WffTree(wff=test_wff).right))
