@@ -3,7 +3,6 @@ This module defines a proof line.
 """
 from dataclasses import dataclass
 from typing import Sequence
-from primitives import ALL, NEC, NOT, POSS, SOME, THEN
 
 from wfftree import WffTree
 
@@ -19,34 +18,8 @@ class Line:
     tree: WffTree
     rule: str  # The rule that justified the line.
     jstlns: tuple[int, ...]  # The lines that justify the use of the rule.
-
-
-def make_line(lnum: int, tree: WffTree, rule: str, jst: Sequence[Line]) -> Line:
-    """
-    Make a unique line given the intended derivation, the rule justifying it,
-    and the premises that justify the rule.
-
-    Args:
-        lnum (int): The line number to assign to the line.
-        tree (WffTree): The derivation, expressed as a WffTree.
-        rule (str): The name of the inference rule that legitimizes the creation of the line.
-        jst (Sequence[Line]): The Line objects that legitimize the inference rule.
-
-    Returns:
-        Line: The newly created line.
-    """
-    dis_rules: tuple[str, ...] = (
-        f"{THEN}I",
-        f"{NOT}I",
-        f"{ALL}I",
-        f"{SOME}E",
-        f"{NEC}I",
-        f"{POSS}E",
-    )
-    depth: int = max(p.depth for p in jst)
-    depth += int(rule.endswith("S") or ", " in rule) - int(rule in dis_rules)
-    jstlns: tuple[int, ...] = tuple(p.lnum for p in jst)
-    return Line(lnum=lnum, depth=depth, tree=tree, rule=rule, jstlns=jstlns)
+    gics: str  # The goal-intended item constants.
+    gPcs: str  # The goal-intended predicate constants.
 
 
 def sort_lines(lines: Sequence[Line]) -> list[Line]:

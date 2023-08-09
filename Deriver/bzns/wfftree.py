@@ -92,8 +92,7 @@ def clean(wff: str, pmop: str = "?") -> str:
         sum(int(c == LP) - int(c == RP) for c in wff[:i])
         for i in range(1, len(wff) + 1)
     )
-    while 0 not in p_counts[:-1] and not p_counts[0] == 0:
-        # print(wff, p_counts)
+    while 0 not in p_counts[:-1] and p_counts[0] > 0:
         wff = wff[1:-1]
         p_counts = tuple(pc - 1 for pc in p_counts[1:-1])
 
@@ -190,10 +189,6 @@ class WffTree:
             self.val = 0
             self.args = tuple()
 
-            if self.mop in EQ:
-                self.args = (self.wff[:pos], self.wff[pos + 1 :])
-                return None
-
             d_count: int = 0
             span_len: int = 1
             for end, char in enumerate(self.wff[1:], start=1):
@@ -219,12 +214,13 @@ class WffTree:
         Returns:
             str: The square-bracket-annoted parse tree.
         """
+        jargs: str
         if not hasattr(self, "mop"):
             if hasattr(self, "args"):
-                jargs: str = (
+                jargs = (
                     "] [".join(self.args) if len(self.args) > 1 else "".join(self.args)
                 )
-                return f"[{self.mop} [{jargs}]]"
+                return f"[{str(self.wff)[0]} [{jargs}]]"
             return f"[{self.wff}]"
         if self.mop in BINOPS:
             return f"[{self.mop} {repr(self.left)} {repr(self.right)}]"
@@ -232,6 +228,9 @@ class WffTree:
             return f"[{self.mop} {repr(self.right)}]"
         elif self.mop in QUANTS:
             return f"[{self.mop}{self.var} {repr(self.right)}]"
+        elif self.mop == EQ:
+            jargs = "] [".join(self.args)
+            return f"[{self.mop} [{jargs}]]"
         else:
             return f"[{self.wff}]"
 

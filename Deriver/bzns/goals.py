@@ -1,7 +1,9 @@
 """
 This module creates proof goals for a given proposition.
 """
+from copy import deepcopy
 from dataclasses import astuple, dataclass
+import re
 from typing import Sequence, TypedDict
 from primitives import (
     AND,
@@ -18,7 +20,7 @@ from primitives import (
     POSS,
     EQ,
 )
-from wfftree import WffTree
+from wfftree import WffTree, has_mop
 
 
 class ArbType(TypedDict):
@@ -47,7 +49,7 @@ def find_arbs(trees: Sequence[WffTree]) -> ArbType:
     )
 
 
-def instantiate(tree: WffTree, const: str) -> WffTree:
+def inst(tree: WffTree, const: str) -> WffTree:
     """
     Instantiate every instance of the variable in a wff tree
     with its chosen arbitrary constant.
@@ -58,14 +60,13 @@ def instantiate(tree: WffTree, const: str) -> WffTree:
     """
     arbed_wff: str
     if const.isnumeric():  # It's a modal instantiation.
-        if tree.val == 2:
-            tree.left = instantiate(tree.left, const)
-            tree.right = instantiate(tree.right, const)
-        elif tree.val == 1:
-            tree.right = instantiate(tree.right, const)
-        arbed_wff = f"{str(tree)}_{const}"
-        return WffTree(wff=arbed_wff)
-    arbed_wff = str(tree).replace(tree.var, const)
+        atom_qry: str = r"([A-Z])([a-z]|«.+?»)*(_\d+)*"
+        arbed_wff = re.sub(pattern=atom_qry, repl=rf"\g<0>_{const}", string=str(tree))
+        tree = WffTree(wff=arbed_wff)
+        if has_mop(tree=tree, mop=NEC) or has_mop(tree=tree, mop=POSS):
+            return tree.right
+        return tree
+    arbed_wff = str(tree.right).replace(tree.var, const)
     return WffTree(wff=arbed_wff)
 
 
@@ -162,7 +163,7 @@ def goal_list(
             new_arb = arbs["A"][0]
             arbs["A"] = arbs["A"][1:]
         new_a = WffTree(wff=f"[{new_arb}]")
-        new_b = instantiate(tree=g_tree.right, const=new_arb)
+        new_b = inst(tree=g_tree, const=new_arb)
         g_a = Goal(tree=new_a, arbs=arbs, gid=f"{gid}{ALL}S", depth=depth)
         g_b = Goal(tree=new_b, arbs=arbs, gid=f"{gid}{ALL}SA", depth=depth + 1)
         return (
@@ -173,7 +174,7 @@ def goal_list(
     if g_mop == SOME:
         gs_a = [
             Goal(
-                tree=instantiate(tree=g_tree.right, const=c),
+                tree=inst(tree=g_tree, const=c),
                 arbs=arbs,
                 gid=f"{gid}*{c}*",
                 depth=depth,
@@ -189,7 +190,7 @@ def goal_list(
         new_arb = arbs["w"][0]
         arbs["w"] = arbs["w"][1:]
         new_a = WffTree(wff=f"[{new_arb}]")
-        new_b = instantiate(tree=g_tree.right, const=new_arb)
+        new_b = inst(tree=g_tree.right, const=new_arb)
         g_a = Goal(tree=new_a, arbs=arbs, gid=f"{gid}{NEC}S", depth=depth)
         g_b = Goal(tree=new_b, arbs=arbs, gid=f"{gid}{NEC}SA", depth=depth + 1)
         return (
@@ -200,7 +201,7 @@ def goal_list(
     if g_mop == POSS:
         gs_a = [
             Goal(
-                tree=instantiate(tree=g_tree.right, const=c),
+                tree=inst(tree=g_tree.right, const=c),
                 arbs=arbs,
                 gid=f"{gid}*{c}*",
                 depth=depth,

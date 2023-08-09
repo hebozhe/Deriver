@@ -2,10 +2,11 @@
 This module houses all of the inference rules that are allowed in Deriver.
 """
 from itertools import product
-from typing import Callable, Generator
+import re
+from typing import Callable, Generator, Sequence
 from wfftree import WffTree, has_mop
-from goals import Goal, instantiate
-from line import Line, find_valid_prems, make_line
+from goals import Goal, inst
+from line import Line, find_valid_prems
 from primitives import (
     ALL,
     AND,
@@ -39,7 +40,15 @@ def add_sm(proof: list[Line], goals: list[Goal]) -> list[Line]:
     last_ln: Line = (
         proof[-1]
         if proof
-        else Line(lnum=0, depth=0, tree=WffTree(wff=VER), rule="", jstlns=tuple())
+        else Line(
+            lnum=0,
+            depth=0,
+            tree=WffTree(wff=VER),
+            rule="",
+            jstlns=tuple(),
+            gics="".join(c for c in str(goals[0].tree) if c in ITEM_CONSTS),
+            gPcs="".join(c for c in str(goals[0].tree) if c in PRED_CONSTS),
+        )
     )
 
     for gol in goals:
@@ -52,9 +61,46 @@ def add_sm(proof: list[Line], goals: list[Goal]) -> list[Line]:
         tree: WffTree = gol.tree
         rule: str = gol.gid[-2:]
         jstlns: tuple[int, ...] = tuple()
-        return proof + [Line(*(lnum, depth, tree, rule, jstlns))]
+        gics: str = last_ln.gics
+        gPcs: str = last_ln.gPcs
+        return proof + [Line(*(lnum, depth, tree, rule, jstlns, gics, gPcs))]
 
     return proof
+
+
+def make_drv(proof: list[Line], tree: WffTree, rule: str, jst: Sequence[Line]) -> Line:
+    """
+    Make a new derivation line given the proof, the intended derivation tree,
+    the rule justifying it, and the premises that justify the rule.
+
+    Args:
+        proof (list[Line]): The sorted lines of a nonempty proof.
+        tree (WffTree): The derivation, expressed as a WffTree.
+        rule (str): The name of the inference rule that legitimizes the creation of the line.
+        jst (Sequence[Line]): The Line objects that legitimize the inference rule.
+
+    Returns:
+        Line: The newly created line.
+    """
+    lnum: int = proof[-1].lnum + 1
+
+    depth: int = proof[-1].depth
+    dis_rules: tuple[str, ...] = (
+        f"{THEN}I",
+        f"{NOT}I",
+        f"{ALL}I",
+        f"{SOME}E",
+        f"{NEC}I",
+        f"{POSS}E",
+    )
+    depth += int(rule.endswith("S") or "/" in rule) - int(rule in dis_rules)
+
+    jstlns: tuple[int, ...] = tuple(p.lnum for p in jst)
+
+    gics: str = proof[-1].gics
+    gPcs: str = proof[-1].gPcs
+
+    return Line(*(lnum, depth, tree, rule, jstlns, gics, gPcs))
 
 
 def gen_prem_combos(
@@ -92,7 +138,6 @@ def and_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{AND}E"
     drv: Line
 
@@ -100,10 +145,10 @@ def and_elim(proof: list[Line]) -> list[Line]:
         if not has_mop(tree=prx.tree, mop=AND):
             continue
         if all(prx.tree.left != p.tree for p in prems):  # No left redundancy.
-            drv = make_line(lnum=lnum, tree=prx.tree.left, rule=rule, jst=(prx,))
+            drv = make_drv(proof=proof, tree=prx.tree.left, rule=rule, jst=(prx,))
             return proof + [drv]
         if all(prx.tree.right != p.tree for p in prems):  # No right redundancy.
-            drv = make_line(lnum=lnum, tree=prx.tree.right, rule=rule, jst=(prx,))
+            drv = make_drv(proof=proof, tree=prx.tree.right, rule=rule, jst=(prx,))
             return proof + [drv]
 
     return proof
@@ -123,7 +168,6 @@ def and_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{AND}I"
     drv: Line
 
@@ -135,7 +179,7 @@ def and_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
         for prx, pry in gen_prem_combos(prems=prems, size=2):
             if prx.tree != gol.tree.left or pry.tree != gol.tree.right:
                 continue
-            drv = make_line(lnum=lnum, tree=gol.tree, rule=rule, jst=(prx, pry))
+            drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=(prx, pry))
             return proof + [drv]
 
     return proof
@@ -154,7 +198,6 @@ def or_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{OR}E"
     drv: Line
 
@@ -173,7 +216,7 @@ def or_elim(proof: list[Line]) -> list[Line]:
             continue
         if any(prz.tree.right == p.tree for p in prems):  # No redundancy.
             continue
-        drv = make_line(lnum=lnum, tree=prz.tree.right, rule=rule, jst=(prx, pry, prz))
+        drv = make_drv(proof=proof, tree=prz.tree.right, rule=rule, jst=(prx, pry, prz))
         return proof + [drv]
 
     return proof
@@ -193,7 +236,6 @@ def or_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{OR}I"
     drv: Line
 
@@ -206,7 +248,7 @@ def or_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
             # x must match goal's left or right.
             if prx.tree != gol.tree.left and prx.tree != gol.tree.right:
                 continue
-            drv = make_line(lnum=lnum, tree=gol.tree, rule=rule, jst=(prx,))
+            drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=(prx,))
             return proof + [drv]
 
     return proof
@@ -225,7 +267,6 @@ def then_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{THEN}E"
     drv: Line
 
@@ -236,7 +277,7 @@ def then_elim(proof: list[Line]) -> list[Line]:
             continue
         if any(prx.tree.right == p.tree for p in prems):  # No redundancy.
             continue
-        drv = make_line(lnum=lnum, tree=prx.tree.right, rule=rule, jst=(prx, pry))
+        drv = make_drv(proof=proof, tree=prx.tree.right, rule=rule, jst=(prx, pry))
         return proof + [drv]
 
     return proof
@@ -262,7 +303,7 @@ def deepest_sm_block(prems: list[Line]) -> list[Line]:
         return []
 
     for dex, prem in enumerate(reversed(prems), start=1):
-        if prem.rule.endswith("S"):
+        if prem.rule.endswith("S") or "/" in prem.rule:
             return prems[-dex:]
 
     return []
@@ -282,7 +323,6 @@ def then_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{THEN}I"
     drv: Line
 
@@ -292,23 +332,25 @@ def then_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
 
     sm_line: Line = sm_block[0]
     smd: int = sm_line.depth
-    for gol in goals:  # This goal is to match the consequent of the conditional.
-        if not gol.gid.endswith(
-            f"{THEN}SA"
-        ):  # Must be a sought conditional consequent.
+    for gol in goals:
+        if not has_mop(tree=gol.tree, mop=THEN):
             continue
-        if gol.depth != smd:  # Must match the intended depth.
+        if gol.tree.left != sm_line.tree:  # The antecedent must match the assumption.
             continue
-        drv_wff: str = f"({str(sm_line.tree)}){THEN}({str(gol.tree)})"
-        drv_tree: WffTree = WffTree(wff=drv_wff)
-        if any(drv_tree == p.tree and p.depth < smd for p in prems):  # No redundancy.
+        if gol.depth != smd - 1:  # Must match the intended depth.
             continue
-
         for prx in sm_block[1:]:
-            if prx.tree != gol.tree:  # x must match the goal consequent.
+            if gol.tree.right != prx.tree:  # The consequent must be in the block.
                 continue
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(sm_line, prx))
+            drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=(sm_line, prx))
             return proof + [drv]
+
+        # Consider reiterating lines that matched before the block.
+        reit: Line
+        for prx in prems:
+            if gol.tree.right == prx.tree:  # The consequent is prior to the block.
+                reit = make_drv(proof=proof, tree=prx.tree, rule="R", jst=(prx,))
+                return then_intro(proof + [reit], goals)
 
     return proof
 
@@ -326,7 +368,6 @@ def iff_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{IFF}E"
     drv: Line
 
@@ -338,12 +379,12 @@ def iff_elim(proof: list[Line]) -> list[Line]:
         drv_wff = f"({str(prx.tree.left)}){THEN}({str(prx.tree.right)})"
         drv_tree = WffTree(wff=drv_wff)
         if all(drv_tree != p.tree for p in prems):  # No redundancy.
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(prx,))
+            drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx,))
             return proof + [drv]
         drv_wff = f"({str(prx.tree.right)}){THEN}({str(prx.tree.left)})"
         drv_tree = WffTree(wff=drv_wff)
         if all(drv_tree != p.tree for p in prems):  # No redundancy.
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(prx,))
+            drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx,))
             return proof + [drv]
 
     return proof
@@ -363,7 +404,6 @@ def iff_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{IFF}I"
     drv: Line
 
@@ -387,7 +427,7 @@ def iff_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
                 continue
             if prx.tree.right != gol.tree.right:
                 continue
-            drv = make_line(lnum=lnum, tree=gol.tree, rule=rule, jst=(prx, pry))
+            drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=(prx, pry))
             return proof + [drv]
 
     return proof
@@ -406,7 +446,6 @@ def not_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{NOT}E"
     drv: Line
 
@@ -419,7 +458,7 @@ def not_elim(proof: list[Line]) -> list[Line]:
         drv_tree = prx.tree.right.right
         if any(drv_tree == p.tree for p in prems):  # No redundancy.
             continue
-        drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(prx,))
+        drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx,))
         return proof + [drv]
 
     return proof
@@ -439,7 +478,6 @@ def not_intro(proof: list[Line], _: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{NOT}I"
     drv: Line
 
@@ -456,8 +494,15 @@ def not_intro(proof: list[Line], _: list[Goal]) -> list[Line]:
             continue
         drv_wff = f"{NOT}({str(sm_line.tree)})"
         drv_tree = WffTree(wff=drv_wff)
-        drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(sm_line, prx))
+        drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(sm_line, prx))
         return proof + [drv]
+
+    # Consider reiterating lines that matched before the block.
+    reit: Line
+    for prx in prems:
+        if str(prx.tree) == FAL:  # The falsum is prior to the block.
+            reit = make_drv(proof=proof, tree=prx.tree, rule="R", jst=(prx,))
+            return not_intro(proof + [reit], _)
 
     return proof
 
@@ -481,7 +526,6 @@ def ver_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
         return [Line(lnum=1, depth=0, tree=v_t, rule=rule, jstlns=tuple())]
 
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     drv: Line
 
     if any(str(p.tree) == VER for p in prems):  # No redundancy.
@@ -490,7 +534,7 @@ def ver_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     for gol in goals:
         if str(gol.tree) != VER:
             continue
-        drv = make_line(lnum=lnum, tree=WffTree(wff=VER), rule=rule, jst=tuple())
+        drv = make_drv(proof=proof, tree=WffTree(wff=VER), rule=rule, jst=tuple())
         return proof + [drv]
 
     return proof
@@ -512,15 +556,17 @@ def fal_elim(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{FAL}E"
     drv: Line
 
     for gol in goals:
         if any(gol.tree == p.tree for p in prems):  # No redundancy.
             continue
-        drv = make_line(lnum=lnum, tree=gol.tree, rule=rule, jst=(proof[-1],))
-        return proof + [drv]
+        for prx in prems:
+            if str(prx.tree) != FAL:
+                continue
+            drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=(prx,))
+            return fal_elim(proof + [drv], goals=goals)
 
     return proof
 
@@ -531,7 +577,7 @@ def fal_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
 
     Args:
         proof (list[Line]): The sorted lines of a proof.
-        goals (list[Goal]): The list of goals (irrelevant here).
+        goals (list[Goal]): The list of goals.
 
     Returns:
         list[Line]: The updated proof, if any instances of the rule can be applied.
@@ -539,7 +585,6 @@ def fal_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{FAL}I"
     drv: Line
 
@@ -551,8 +596,8 @@ def fal_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
             continue
         if prx.tree != pry.tree.right:  # x must be the assertion to negation y.
             continue
-        drv = make_line(lnum=lnum, tree=WffTree(wff=FAL), rule=rule, jst=(prx, pry))
-        return fal_elim(proof=proof + [drv], goals=goals)  # Call fall_elim.
+        drv = make_drv(proof=proof, tree=WffTree(wff=FAL), rule=rule, jst=(prx, pry))
+        return fal_elim(proof=proof + [drv], goals=goals)  # Call fal_elim.
 
     return proof
 
@@ -587,7 +632,6 @@ def all_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{ALL}E"
     drv: Line
 
@@ -595,11 +639,14 @@ def all_elim(proof: list[Line]) -> list[Line]:
     for prx in prems:
         if not has_mop(tree=prx.tree, mop=ALL):
             continue
-        for ppc in pull_prem_consts(prems=prems, var=prx.tree.var):
-            drv_tree = instantiate(tree=prx.tree, const=ppc)
+        prem_consts: str = pull_prem_consts(prems=prems, var=prx.tree.var)
+        prem_consts += prx.gics if prx.tree.var.islower() else prx.gPcs
+        for ppc in prem_consts:
+            drv_tree = inst(tree=prx.tree, const=ppc)
+            print(all_elim.__name__, str(drv_tree))
             if any(drv_tree == p.tree for p in prems):  # No redundancy.
                 continue
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(prx,))
+            drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx,))
             return proof + [drv]
 
     return proof
@@ -611,7 +658,7 @@ def all_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
 
     Args:
         proof (list[Line]): The sorted lines of a proof.
-        goals (list[Goal]): The list of goals (irrelevant here).
+        goals (list[Goal]): The list of goals.
 
     Returns:
         list[Line]: The updated proof, if any instances of the rule can be applied.
@@ -619,7 +666,6 @@ def all_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{ALL}I"
     drv: Line
 
@@ -629,24 +675,20 @@ def all_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
 
     sm_line: Line = sm_block[0]
     smd: int = sm_line.depth
-    for gol in goals:  # This goal is to match the right instantiation.
-        if not gol.gid.endswith(f"{ALL}SA"):  # Must be a sought instantiation.
+    sm_const: str = str(sm_line.tree)[1:-1]
+    gol_inst: WffTree
+    for gol in goals:
+        if not has_mop(tree=gol.tree, mop=ALL):
             continue
-        if gol.depth != smd:  # Must match the intended depth.
+        if gol.depth != smd - 1:  # Must match the intended depth.
             continue
 
-        # The universal generalization occurs here, and there can only be one.
-        prem_const: str = pull_prem_consts(prems=[sm_line], var=gol.tree.var)
-        gol_rep: str = str(gol.tree).replace(prem_const, gol.tree.var)
-        drv_wff: str = f"{ALL}{gol.tree.var}({gol_rep})"
-        drv_tree: WffTree = WffTree(wff=drv_wff)
+        gol_inst = inst(tree=gol.tree, const=sm_const)
 
-        if any(drv_tree == p.tree and p.depth < smd for p in prems):  # No redundancy.
-            continue
         for prx in sm_block[1:]:
-            if prx.tree != gol.tree:  # x must match the goal instantiation.
+            if prx.tree != gol_inst:  # x must match the goal instantiation.
                 continue
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(sm_line, prx))
+            drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=(sm_line, prx))
             return proof + [drv]
 
     return proof
@@ -667,7 +709,6 @@ def some_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{SOME}E"
     drv: Line
 
@@ -677,40 +718,33 @@ def some_elim(proof: list[Line]) -> list[Line]:
 
         # Either the assumption as been made with the instantiation, or it hasn't.
         # If it has, it will be in the premises.
-        if all(
-            not p.rule.startswith(f"{SOME}S") or prx.lnum not in p.jstlns for p in prems
-        ):
-            # It's totally absent, so add one.
+        sm_: str = f"{SOME}S"
+        if not any(p.rule.startswith(sm_) and prx.lnum in p.jstlns for p in prems):
+            # The assumption is totally absent.
+            if prx.rule in (f"{SOME}I", rule):
+                # x cannot be an existential introduction or elimination.
+                continue
             prem_consts: str = pull_prem_consts(prems=prems, var=prx.tree.var)
             consts: str = ITEM_CONSTS if prx.tree.var.islower() else PRED_CONSTS
             arbs: str = "".join(c for c in consts if c not in prem_consts)
-            for arb in reversed(arbs):
-                drv_tree = instantiate(tree=prx.tree, const=arb)
-                drv = make_line(
-                    lnum=lnum, tree=drv_tree, rule=f"{SOME}S, {arb}", jst=(prx,)
-                )
-                return proof + [drv]
+            drv_tree = inst(tree=prx.tree, const=arbs[-1])
+            rule = f"{SOME}S/{arbs[-1]}"  # The rule changes to an assumption.
+            drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx,))
+            return proof + [drv]
 
         # The assumption is in the premises,
         # but it may not be in the deepest assumption block.
         sm_block: list[Line] = deepest_sm_block(prems=prems)
         sm_line: Line = sm_block[0]
-        if not prx.lnum not in sm_line.jstlns:  # The assumption is under another block.
-            return proof
+        if not sm_line.rule.startswith(sm_):  # The block must be of the right kind.
+            continue
 
-        # The assumption is in the block.
-        # There may be a non-offending proposition in the block.
-        # Use the assumption line's rule string to get the constant.
-        sm_const: str = sm_line.rule.split(", ")[-1]  # Jank as fuck!
-        smd: int = sm_line.depth
+        sm_const: str = sm_line.rule.split("/")[-1]  # Jank as fuck!
         for pry in sm_block[1:]:
             if sm_const in str(pry.tree):  #  y must be legitimately dischargeable.
                 continue
-            # No redundancy.
-            if any(pry.tree == p.tree and p.depth < smd for p in prems):
-                continue
             jst: tuple[Line, ...] = (prx, sm_line, pry)
-            drv = make_line(lnum=lnum, tree=pry.tree, rule=rule, jst=jst)
+            drv = make_drv(proof=proof, tree=pry.tree, rule=rule, jst=jst)
             return proof + [drv]
 
     return proof
@@ -722,7 +756,7 @@ def some_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
 
     Args:
         proof (list[Line]): The sorted lines of a proof.
-        goals (list[Goal]): The list of goals (irrelevant here).
+        goals (list[Goal]): The list of goals.
 
     Returns:
         list[Line]: The updated proof, if any instances of the rule can be applied.
@@ -730,7 +764,6 @@ def some_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{SOME}I"
     drv: Line
 
@@ -741,9 +774,9 @@ def some_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
             continue
         for prx in prems:
             prem_consts: str = pull_prem_consts(prems=[prx], var=gol.tree.var)
-            if all(instantiate(tree=gol.tree, const=ppc) != prx for ppc in prem_consts):
+            if all(inst(tree=gol.tree, const=c) != prx.tree for c in prem_consts):
                 continue
-            drv = make_line(lnum=lnum, tree=gol.tree, rule=rule, jst=(prx,))
+            drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=(prx,))
             return proof + [drv]
 
     return proof
@@ -762,19 +795,24 @@ def nec_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{NEC}E"
     drv: Line
+
+    worlds: str = "".join(c for p in prems for c in str(p.tree) if c.isdigit())
+    if not worlds:
+        return proof
 
     drv_tree: WffTree
     for prx in prems:
         if not has_mop(tree=prx.tree, mop=NEC):
             continue
-        for wrl in "123456789":
-            drv_tree = instantiate(tree=prx.tree, const=wrl)
+        for wrl in worlds:
+            drv_tree = inst(tree=prx.tree, const=wrl)
+            if wrl in str(prx.tree):  # x must not already be an instantiation.
+                continue
             if any(drv_tree == p.tree for p in prems):  # No redundancy.
                 continue
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(prx,))
+            drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx,))
             return proof + [drv]
 
     return proof
@@ -786,7 +824,7 @@ def nec_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
 
     Args:
         proof (list[Line]): The sorted lines of a proof.
-        goals (list[Goal]): The list of goals (irrelevant here).
+        goals (list[Goal]): The list of goals.
 
     Returns:
         list[Line]: The updated proof, if any instances of the rule can be applied.
@@ -794,7 +832,6 @@ def nec_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{NEC}I"
     drv: Line
 
@@ -803,25 +840,20 @@ def nec_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
         return proof
 
     sm_line: Line = sm_block[0]
+    wrl: str = str(sm_line.tree)[1:-1]
     smd: int = sm_line.depth
     for gol in goals:  # This goal is to match the right instantiation.
-        if not gol.gid.endswith(f"{NEC}SA"):  # Must be a sought instantiation.
+        if not has_mop(tree=gol.tree, mop=NEC):
             continue
-        if gol.depth != smd:  # Must match the intended depth.
+        if gol.depth != smd - 1:  # Must match the intended depth.
             continue
 
-        # The necessity generalization occurs here, and there can only be one.
-        world: str = sm_line.rule[1:-1]
-        gol_rep: str = str(gol.tree).replace(f"_{world}", "")
-        drv_wff: str = f"{NEC}({gol_rep})"
-        drv_tree: WffTree = WffTree(wff=drv_wff)
+        gol_inst = inst(tree=gol.tree, const=wrl)
 
-        if any(drv_tree == p.tree and p.depth < smd for p in prems):  # No redundancy.
-            continue
         for prx in sm_block[1:]:
-            if prx.tree != gol.tree:  # x must match the goal instantiation.
+            if prx.tree != gol_inst:  # x must match the goal instantiation.
                 continue
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(sm_line, prx))
+            drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=(sm_line, prx))
             return proof + [drv]
 
     return proof
@@ -840,7 +872,6 @@ def poss_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{POSS}E"
     drv: Line
 
@@ -850,18 +881,18 @@ def poss_elim(proof: list[Line]) -> list[Line]:
 
         # Either the assumption as been made with the instantiation, or it hasn't.
         # If it has, it will be in the premises.
-        if all(
-            not p.rule.startswith(f"{POSS}S") or prx.lnum not in p.jstlns for p in prems
-        ):
+        sm_: str = f"{POSS}S"
+        if not any(p.rule.startswith(sm_) and prx.lnum in p.jstlns for p in prems):
             # It's totally absent, so add one.
-            worlds: str = "123456789"
+            if prx.rule in (f"{POSS}I", rule):
+                # x cannot be a possibility introduction or elimination.
+                continue
             prems_str: str = "".join(str(p.tree) for p in prems)
-            warbs: str = "".join(w for w in worlds if w not in prems_str)
+            warbs: str = "".join(w for w in "123456789" if w not in prems_str)
             for warb in reversed(warbs):
-                drv_tree = instantiate(tree=prx.tree, const=warb)
-                drv = make_line(
-                    lnum=lnum, tree=drv_tree, rule=f"{POSS}S, {warb}", jst=(prx,)
-                )
+                drv_tree = inst(tree=prx.tree, const=warb)
+                rule = f"{POSS}S/{warb}"  # The rule changes to an assumption.
+                drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx,))
                 return proof + [drv]
 
         # The assumption is in the premises,
@@ -874,7 +905,7 @@ def poss_elim(proof: list[Line]) -> list[Line]:
         # The assumption is in the block.
         # There may be a non-offending proposition in the block.
         # Use the assumption line's rule string to get the constant.
-        sm_const: str = sm_line.rule.split(", ")[-1]  # Jank as fuck!
+        sm_const: str = sm_line.rule.split("/")[-1]  # Jank as fuck!
         smd: int = sm_line.depth
         for pry in sm_block[1:]:
             if sm_const in str(pry.tree):  #  y must be legitimately dischargeable.
@@ -883,19 +914,19 @@ def poss_elim(proof: list[Line]) -> list[Line]:
             if any(pry.tree == p.tree and p.depth < smd for p in prems):
                 continue
             jst: tuple[Line, ...] = (prx, sm_line, pry)
-            drv = make_line(lnum=lnum, tree=pry.tree, rule=rule, jst=jst)
+            drv = make_drv(proof=proof, tree=pry.tree, rule=rule, jst=jst)
             return proof + [drv]
 
     return proof
 
 
-def poss_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
+def poss_intro(proof: list[Line], _: list[Goal]) -> list[Line]:
     """
     Perform all allowed and needed possibility introductions in a proof.
 
     Args:
         proof (list[Line]): The sorted lines of a proof.
-        goals (list[Goal]): The list of goals (irrelevant here).
+        _ (list[Goal]): The list of goals (irrelevant here).
 
     Returns:
         list[Line]: The updated proof, if any instances of the rule can be applied.
@@ -903,21 +934,22 @@ def poss_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{POSS}I"
     drv: Line
 
-    for gol in goals:
-        if not has_mop(tree=gol.tree, mop=POSS):
+    drv_wff: str
+    drv_tree: WffTree
+    for prx in prems:
+        stances: list[str] = re.findall(pattern=r"_\d+", string=str(prx.tree))
+        if not stances:  # x must have a world in which to introduce possibility.
             continue
-        if any(gol.tree == p.tree for p in prems):  # No redundancies.
+        last_wrl: str = stances[-1]
+        drv_wff = f"{POSS}({str(prx.tree).replace(last_wrl, '')})"
+        drv_tree = WffTree(wff=drv_wff)
+        if any(drv_tree == p.tree for p in prems):  # No redundancy.
             continue
-        for prx in prems:
-            worlds: str = "123456789"
-            if all(instantiate(tree=gol.tree, const=w) != prx for w in worlds):
-                continue
-            drv = make_line(lnum=lnum, tree=gol.tree, rule=rule, jst=(prx,))
-            return proof + [drv]
+        drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx,))
+        return proof + [drv]
 
     return proof
 
@@ -935,7 +967,6 @@ def eq_elim(proof: list[Line]) -> list[Line]:
     if not proof:
         return proof
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     rule: str = f"{EQ}E"
     drv: Line
 
@@ -952,14 +983,14 @@ def eq_elim(proof: list[Line]) -> list[Line]:
             drv_tree = WffTree(wff=drv_wff)
             if any(drv_tree == p.tree for p in prems):  # No redundancy.
                 continue
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(prx, pry))
+            drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx, pry))
             return proof + [drv]
         if r_arg in str(pry.tree):  # Right-left substitution is allowed.
             drv_wff = str(pry.tree).replace(r_arg, l_arg)
             drv_tree = WffTree(wff=drv_wff)
             if any(drv_tree == p.tree for p in prems):  # No redundancy.
                 continue
-            drv = make_line(lnum=lnum, tree=drv_tree, rule=rule, jst=(prx, pry))
+            drv = make_drv(proof=proof, tree=drv_tree, rule=rule, jst=(prx, pry))
             return proof + [drv]
 
     return proof
@@ -983,11 +1014,13 @@ def eq_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
                 continue
             if gol.tree.args[0] != gol.tree.args[-1]:  # The identity args must match.
                 continue
-            return [Line(lnum=1, depth=0, tree=gol.tree, rule=rule, jstlns=tuple())]
+            gics: str = proof[-1].gics
+            gPcs: str = proof[-1].gPcs
+            dumb_tup: tuple[int, ...] = tuple()
+            return [Line(*(1, 0, gol.tree, rule, dumb_tup, gics, gPcs))]
         return proof
 
     prems: list[Line] = find_valid_prems(lines=proof)
-    lnum: int = proof[-1].lnum + 1
     drv: Line
 
     for gol in goals:
@@ -997,7 +1030,7 @@ def eq_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
             continue
         if gol.tree.args[0] != gol.tree.args[-1]:  # The identity args must match.
             continue
-        drv = make_line(lnum=lnum, tree=gol.tree, rule=rule, jst=tuple())
+        drv = make_drv(proof=proof, tree=gol.tree, rule=rule, jst=tuple())
         return proof + [drv]
 
     return proof
