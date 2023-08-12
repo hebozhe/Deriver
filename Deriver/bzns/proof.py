@@ -1,7 +1,6 @@
 """
 This module houses the steps for full proof derivations.
 """
-from copy import deepcopy
 from typing import Sequence
 from primitives import (
     ALL,
@@ -20,8 +19,8 @@ from primitives import (
 )
 from rules import ELIM_RULES, INTRO_RULES, add_sm
 from wfftree import WffTree
-from line import Line, find_valid_prems
-from goals import Goal, ext_goals, find_arbs, goal_list, pop_goals, sort_goals
+from line import Line
+from goals import Goal, find_arbs, goal_list, pop_goals, sort_goals
 
 
 def init_proof(wffs: Sequence[str]) -> tuple[list[Goal], list[Line]]:
@@ -69,36 +68,6 @@ def reduce_goals(goals: list[Goal], proof: list[Line]) -> list[Goal]:
         if any(gol.tree == p.tree and gol.depth >= p.depth for p in proof):
             return pop_goals(goals=goals, gid=gol.gid)
     return goals
-
-
-def missing_prem_trees(proof: list[Line], goals: list[Goal]) -> list[WffTree]:
-    """
-    Find a premise that was not derived in the valid premises of the proof,
-    but that is needed for an elimination rule to work on that line.
-
-    Args:
-        proof (list[Line]): The sorted lines of a proof.
-        goals (list[Goal]): The sorted goals of a proof.
-
-    Note: Only intuitionistically valid formulae will be proposed.
-    """
-    prems: list[Line] = find_valid_prems(lines=proof)
-
-    e_rule: str
-    n_tree: WffTree
-    needed_prems: list[WffTree] = []
-    for prx in prems:
-        if not hasattr(prx.tree, "mop"):
-            continue
-        if prx.tree.mop == THEN:
-            e_rule = f"{THEN}E"
-            if any(p.rule == e_rule and p.lnum in p.jstlns for p in prems):
-                continue
-            n_tree = prx.tree.left  # The proof didn't have the antecedent.
-            if any(g.tree == n_tree and g.depth == prems[-1].depth for g in goals):
-                continue
-            needed_prems += [deepcopy(n_tree)]
-    return needed_prems
 
 
 def derive(goals: list[Goal], proof: list[Line]) -> list[Line]:
@@ -155,24 +124,6 @@ def derive(goals: list[Goal], proof: list[Line]) -> list[Line]:
         aft = len(proof)
         if bef < aft:
             continue
-
-        # Extend goals with missing WffTree objects, if any exist.
-        m_trees: list[WffTree] = missing_prem_trees(proof=proof, goals=goals)
-        if not m_trees:
-            continue
-
-        bef = len(goals)
-
-        for tree in m_trees:
-            new_goal: Goal = Goal(
-                tree=tree,
-                arbs=goals[-1].arbs,
-                gid=goals[-1].gid + f"{str(tree)}E",
-                depth=proof[-1].depth,
-            )
-            goals = ext_goals(goals=goals, new_goal=new_goal)
-
-        # print("NEW GOALS:", [(str(g.tree), g.depth, g.gid) for g in goals])
 
     return proof
 

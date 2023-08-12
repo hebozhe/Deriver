@@ -523,7 +523,8 @@ def ver_intro(proof: list[Line], goals: list[Goal]) -> list[Line]:
         if all(str(g.tree) != VER for g in goals):  # Verum must be sought.
             return proof
         v_t: WffTree = WffTree(wff=VER)
-        return [Line(lnum=1, depth=0, tree=v_t, rule=rule, jstlns=tuple())]
+        v_tup: tuple[int, ...] = tuple()
+        return [Line(*(1, 0, v_t, rule, v_tup, "", ""))]
 
     prems: list[Line] = find_valid_prems(lines=proof)
     drv: Line

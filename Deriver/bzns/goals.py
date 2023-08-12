@@ -1,7 +1,6 @@
 """
 This module creates proof goals for a given proposition.
 """
-from copy import deepcopy
 from dataclasses import astuple, dataclass
 import re
 from typing import Sequence, TypedDict
