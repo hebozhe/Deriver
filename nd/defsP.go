@@ -1,4 +1,4 @@
-package pr
+package nd
 
 import (
 	"Deriver/fmla"
@@ -126,12 +126,6 @@ func GetSteps(prf *Proof, scope ProofScope) (steps []*Step) {
 			return
 		})
 	}
-
-	return
-}
-
-func GetSubproofs(prf *Proof) (sprfs []*Proof) {
-	sprfs = prf.subproofs
 
 	return
 }

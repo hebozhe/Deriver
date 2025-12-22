@@ -1,4 +1,4 @@
-package pr
+package nd
 
 type NDRule uint8
 

@@ -110,8 +110,8 @@ func GetWffSubformulae(wff *WffTree) (subL, subR *WffTree, ok bool) {
 	}
 
 	if ok = wff.kind != Atomic; ok {
-		subL = wff.subL
-		subR = wff.subR
+		subL = DeepCopy(wff.subL)
+		subR = DeepCopy(wff.subR)
 	}
 
 	return
@@ -122,7 +122,7 @@ func GetWffSuperFormula(wff *WffTree) (sup *WffTree) {
 		panic("Invalid WffTree")
 	}
 
-	sup = wff.sup
+	sup = DeepCopy(wff.sup)
 
 	return
 }
