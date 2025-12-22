@@ -47,7 +47,7 @@ var Quantifiers = []Quantifier{Exists, ForAll}
 type WffKind int
 
 const (
-	Atomic WffKind = iota
+	Atomic WffKind = iota + 1
 	Unary
 	Binary
 	Quantified
@@ -104,7 +104,7 @@ func GetWffQuaAndVars(wff *WffTree) (qua Quantifier, pVar Predicate, aVar Argume
 	return
 }
 
-func GetWffSubFormulae(wff *WffTree) (subL, subR *WffTree, ok bool) {
+func GetWffSubformulae(wff *WffTree) (subL, subR *WffTree, ok bool) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
