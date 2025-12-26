@@ -1,9 +1,5 @@
 package fmla
 
-import (
-	"slices"
-)
-
 func DeepCopy(wff *WffTree) (cwff *WffTree) {
 	if wff != nil {
 		cwff = &WffTree{
@@ -12,7 +8,7 @@ func DeepCopy(wff *WffTree) (cwff *WffTree) {
 			pVar: wff.pVar,
 			aVar: wff.aVar,
 			pred: wff.pred,
-			args: append([]Argument{}, wff.args...),
+			args: wff.args,
 			subL: DeepCopy(wff.subL),
 			subR: DeepCopy(wff.subR),
 			sup:  nil, // The parent is set below.
@@ -63,7 +59,7 @@ func ReplacePreds(wff *WffTree, pA Predicate, pB Predicate) (rwff *WffTree) {
 
 func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (rwff *WffTree) {
 	var (
-		dex int
+		arg Argument
 	)
 
 	if wff == nil {
@@ -78,45 +74,48 @@ func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (rwff *WffTree) {
 
 	switch wff.kind {
 	case Atomic:
-		for dex = range wff.args {
-			if wff.args[dex] == aA {
-				wff.args[dex] = aB
+		// FIX: Build new args string properly
+		newArgs := ArgString("")
+		for _, arg = range argStringToArgs(wff.args) {
+			if arg == aA {
+				newArgs += ArgString(aB)
+			} else {
+				newArgs += ArgString(arg)
 			}
 		}
+		rwff.args = newArgs
 	case Unary:
-		wff.subL = ReplaceArgs(wff.subL, aA, aB)
+		rwff.subL = ReplaceArgs(rwff.subL, aA, aB)
 	case Binary:
-		wff.subL = ReplaceArgs(wff.subL, aA, aB)
+		rwff.subL = ReplaceArgs(rwff.subL, aA, aB)
 
-		wff.subR = ReplaceArgs(wff.subR, aA, aB)
+		rwff.subR = ReplaceArgs(rwff.subR, aA, aB)
 	case Quantified:
-		wff.subL = ReplaceArgs(wff.subL, aA, aB)
+		rwff.subL = ReplaceArgs(rwff.subL, aA, aB)
 	default:
 		panic("Invalid WffTree")
 	}
 
-	rwff = wff
-
-	return
+	return rwff
 }
 
-func Identical(wffA, wffB *WffTree) (is bool) {
+func IsIdentical(wffA, wffB *WffTree) (is bool) {
 	if is = wffA.kind == wffB.kind; is {
 		switch wffA.kind {
 		case Atomic:
 			is = wffA.pred == wffB.pred &&
-				slices.Equal(wffA.args, wffB.args)
+				wffA.args == wffB.args
 		case Unary:
 			is = wffA.mop == wffB.mop &&
-				Identical(wffA.subL, wffB.subL)
+				IsIdentical(wffA.subL, wffB.subL)
 		case Binary:
 			is = wffA.mop == wffB.mop &&
-				Identical(wffA.subL, wffB.subL) &&
-				Identical(wffA.subR, wffB.subR)
+				IsIdentical(wffA.subL, wffB.subL) &&
+				IsIdentical(wffA.subR, wffB.subR)
 		case Quantified:
 			is = wffA.pVar == wffB.pVar &&
 				wffA.aVar == wffB.aVar &&
-				Identical(wffA.subL, wffB.subL)
+				IsIdentical(wffA.subL, wffB.subL)
 		default:
 			panic("Invalid WffTree")
 		}

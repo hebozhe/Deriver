@@ -1,10 +1,19 @@
 package fmla
 
 func NewAtomicWff(pc Predicate, acs ...Argument) (wff *WffTree) {
+	var (
+		lenA int
+	)
+
+	if lenA = len(acs); pc == Equals && lenA != 2 {
+		panic("Equals predicate requires exactly two arguments.")
+	}
+
 	wff = &WffTree{
 		kind: Atomic,
+		mop:  NoSymbol,
 		pred: pc,
-		args: acs,
+		args: argsToArgString(acs...),
 	}
 
 	return

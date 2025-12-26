@@ -33,8 +33,8 @@ With respect to propositional logic inference rules, every rule in a weaker logi
 - $\leftrightarrow I$:
   - $A \to B, B \to A \vdash A \leftrightarrow B$
 - $\leftrightarrow E$:
-  - $A \leftrightarrow B, A \vdash B$
-  - $A \leftrightarrow B, B \vdash A$
+  - $A \leftrightarrow B \vdash A \to B$
+  - $A \leftrightarrow B \vdash B \to A$
 
 For convenience in Fitch-style proofs:
 

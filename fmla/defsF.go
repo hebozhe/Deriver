@@ -6,25 +6,26 @@ import (
 )
 
 type Symbol rune
-type Connective Symbol
-type Quantifier Symbol
-type Predicate Symbol
-type Argument Symbol
+type Predicate rune
+type Argument rune
+
+type ArgString string
 
 const (
+	NoSymbol Symbol = 0
 	// Unary Connectives
-	Neg Connective = '¬'
+	Neg Symbol = '¬'
 	// Binary Connectives
-	Wedge Connective = '∧'
-	Vee   Connective = '∨'
-	To    Connective = '→'
-	Iff   Connective = '↔'
+	Wedge Symbol = '∧'
+	Vee   Symbol = '∨'
+	To    Symbol = '→'
+	Iff   Symbol = '↔'
 	// Quantifiers
-	Exists Quantifier = '∃'
-	ForAll Quantifier = '∀'
+	Exists Symbol = '∃'
+	ForAll Symbol = '∀'
 	// Modal Operators
-	Box     Connective = '□'
-	Diamond Connective = '◇'
+	Box     Symbol = '□'
+	Diamond Symbol = '◇'
 	// Parentheses
 	LPar Symbol = '('
 	RPar Symbol = ')'
@@ -40,9 +41,9 @@ var PredVars = []Predicate("UVWXYZ")
 var ArgConsts = []Argument("abcdefghijklmnopqrst")
 var ArgVars = []Argument("uvwxyz")
 
-var UnaryOps = []Connective{Neg, Box, Diamond}
-var BinaryOps = []Connective{Wedge, Vee, To, Iff}
-var Quantifiers = []Quantifier{Exists, ForAll}
+var UnaryOps = []Symbol{Neg, Box, Diamond}
+var BinaryOps = []Symbol{Wedge, Vee, To, Iff}
+var Quantifiers = []Symbol{Exists, ForAll}
 
 type WffKind int
 
@@ -54,70 +55,82 @@ const (
 )
 
 type WffTree struct {
-	kind WffKind    // A kind of formula is Atomic, Unary, Binary, or Quantified.
-	mop  Symbol     // If Kind is Unary, Binary, or Quantified, this is the main operator.
-	pVar Predicate  // If Kind is Quantified, this is the predicate variable, if it exists.
-	aVar Argument   // If Kind is Quantified, this is the argument variable, if it exists.
-	pred Predicate  // If Kind is Atomic, this is the predicate.
-	args []Argument // If Kind is Atomic, this is the tuple of arguments.
-	subL *WffTree   // If Kind is Unary, this is the sole operand; if Kind is Binary, this is the left operand.
-	subR *WffTree   // If Kind is Binary, this is the right operand.
-	sup  *WffTree   // If SubL is non-nil, this is the super-formula.
+	kind WffKind   // A kind of formula is Atomic, Unary, Binary, or Quantified.
+	mop  Symbol    // If Kind is Unary, Binary, or Quantified, this is the main operator.
+	pVar Predicate // If Kind is Quantified, this is the predicate variable, if it exists.
+	aVar Argument  // If Kind is Quantified, this is the argument variable, if it exists.
+	pred Predicate // If Kind is Atomic, this is the predicate.
+	args ArgString // If Kind is Atomic, this is the tuple of arguments.
+	subL *WffTree  // If Kind is Unary, this is the sole operand; if Kind is Binary, this is the left operand.
+	subR *WffTree  // If Kind is Binary, this is the right operand.
+	sup  *WffTree  // If SubL is non-nil, this is the super-formula.
+}
+
+func argStringToArgs(s ArgString) (args []Argument) {
+	var (
+		r rune
+	)
+
+	for _, r = range s {
+		args = append(args, Argument(r))
+	}
+
+	return
+}
+
+func argsToArgString(args ...Argument) (s ArgString) {
+	var (
+		a Argument
+	)
+
+	for _, a = range args {
+		s += ArgString(a)
+	}
+
+	return
 }
 
 func GetWffKind(wff *WffTree) (kind WffKind) {
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
 	kind = wff.kind
 
 	return
 }
 
-func GetWffMainOperator(wff *WffTree) (con Connective, qua Quantifier, ok bool) {
+func GetWffMainOperator(wff *WffTree) (sym Symbol) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
 
-	if ok = wff.kind != Atomic; ok {
-		switch {
-		case slices.Contains(UnaryOps, Connective(wff.mop)):
-			con = Connective(wff.mop)
-		case slices.Contains(BinaryOps, Connective(wff.mop)):
-			con = Connective(wff.mop)
-		case slices.Contains(Quantifiers, Quantifier(wff.mop)):
-			qua = Quantifier(wff.mop)
-		}
-	}
+	sym = wff.mop
 
 	return
 }
 
-func GetWffQuaAndVars(wff *WffTree) (qua Quantifier, pVar Predicate, aVar Argument, ok bool) {
+func GetWffQuaAndVars(wff *WffTree) (qua Symbol, pVar Predicate, aVar Argument) {
+	if wff == nil || wff.kind != Quantified {
+		panic("Invalid WffTree")
+	}
+
+	qua, pVar, aVar = wff.mop, wff.pVar, wff.aVar
+
+	return
+}
+
+func GetWffSubformulae(wff *WffTree) (subL, subR *WffTree) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
 
-	if ok = wff.kind == Quantified; ok {
-		qua = Quantifier(wff.mop)
-		pVar = wff.pVar
-		aVar = wff.aVar
-	}
+	subL, subR = DeepCopy(wff.subL), DeepCopy(wff.subR)
 
 	return
 }
 
-func GetWffSubformulae(wff *WffTree) (subL, subR *WffTree, ok bool) {
-	if wff == nil {
-		panic("Invalid WffTree")
-	}
-
-	if ok = wff.kind != Atomic; ok {
-		subL = DeepCopy(wff.subL)
-		subR = DeepCopy(wff.subR)
-	}
-
-	return
-}
-
-func GetWffSuperFormula(wff *WffTree) (sup *WffTree) {
+func GetWffSuperformula(wff *WffTree) (sup *WffTree) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -134,7 +147,7 @@ func GetWffPredAndArgs(wff *WffTree) (pred Predicate, args []Argument, ok bool) 
 
 	if ok = wff.kind == Atomic; ok {
 		pred = wff.pred
-		args = append(args, wff.args...)
+		args = argStringToArgs(wff.args)
 	}
 
 	return
@@ -153,7 +166,7 @@ func GetConstants(wff *WffTree) (pcs []Predicate, acs []Argument) {
 			pcs = append(pcs, wff.pred)
 		}
 
-		for _, ac = range wff.args {
+		for _, ac = range argStringToArgs(wff.args) {
 			if 'a'-1 < ac && ac < 't'+1 {
 				acs = append(acs, ac)
 			}
@@ -216,7 +229,7 @@ func GetVariables(wff *WffTree) (pvs []Predicate, avs []Argument) {
 			pvs = append(pvs, wff.pred)
 		}
 
-		for _, av = range wff.args {
+		for _, av = range argStringToArgs(wff.args) {
 			if 'u'-1 < av && av < 'z'+1 {
 				avs = append(avs, av)
 			}
@@ -245,6 +258,12 @@ func GetVariables(wff *WffTree) (pvs []Predicate, avs []Argument) {
 		if wff.aVar != 0 {
 			avs = append(avs, wff.aVar)
 		}
+
+		pvsL, avsL = GetVariables(wff.subL)
+
+		pvs = append(pvs, pvsL...)
+
+		avs = append(avs, avsL...)
 	default:
 		panic("Invalid WffTree")
 	}
@@ -280,7 +299,7 @@ func GetWffString(wff *WffTree) (s string) {
 		case Top, Bot:
 			s = string(wff.pred)
 		case Equals:
-			if lenA = len(wff.args); lenA != 2 {
+			if lenA = len(argStringToArgs(wff.args)); lenA != 2 {
 				panic("Equals predicate requires exactly two arguments")
 			}
 

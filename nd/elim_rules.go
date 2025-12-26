@@ -2,392 +2,212 @@ package nd
 
 import (
 	"Deriver/fmla"
+	"Deriver/nd/pr"
 )
 
-type NDElimFunc func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree)
-
-var doToElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
+var tryToElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 	var (
-		stepsL   []*Step
-		wD       World
-		p1, p2   *Step
-		p1L, p1R *fmla.WffTree
-		con      fmla.Connective
-		stepD    *Step
+		lns      []*pr.Line
+		j1, j2   *pr.Line
+		j1i, j2i *pr.LineInfo
+		got2     bool
 	)
 
-	stepsL = GetSteps(prf, LegalScope)
+	lns = pr.GetAdmissibleLines(prf)
 
-	wD = GetWorldAtPoof(prf)
-
-DOTOELIM_OUTER:
-	for _, p1 = range stepsL {
-		if con, _, _ = fmla.GetWffMainOperator(p1.wff); con != fmla.To {
+	for _, j1 = range lns {
+		if j1i = pr.GetLineInfo(j1); j1i.Mop != fmla.To {
 			continue
 		}
 
-		p1L, p1R, _ = fmla.GetWffSubformulae(p1.wff)
+		got2 = false
 
-		for _, p2 = range stepsL {
-			if fmla.Identical(p2.wff, p1L) {
-				stepD = NewStep(p1R, wD, ToElim, 0, p1, p2)
+		for _, j2 = range lns {
+			if j2i = pr.GetLineInfo(j2); fmla.IsIdentical(j2i.Wff, j1i.SubL) {
+				got2 = true
 
-				stepsD = append(stepsD, stepD)
-
-				continue DOTOELIM_OUTER
+				break
 			}
 		}
 
-		needsD = append(needsD, p1L)
+		switch got2 {
+		case true:
+			prf = pr.AddLineToProof(prf, j1i.SubR, pr.ToElim, j1, j2)
+		case false:
+			prf = pr.AddGoalsToProof(prf, j1i.SubL)
+		}
 	}
+
+	prfD = prf
 
 	return
 }
 
-var doWedgeElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
+var tryWedgeElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 	var (
-		stepsL   []*Step
-		wD       World
-		p1       *Step
-		p1L, p1R *fmla.WffTree
-		con      fmla.Connective
-		stepD    *Step
+		lns []*pr.Line
+		j1  *pr.Line
+		j1i *pr.LineInfo
 	)
 
-	stepsL = GetSteps(prf, LegalScope)
+	lns = pr.GetAdmissibleLines(prf)
 
-	wD = GetWorldAtPoof(prf)
-
-	for _, p1 = range stepsL {
-		if con, _, _ = fmla.GetWffMainOperator(p1.wff); con != fmla.Wedge {
+	for _, j1 = range lns {
+		if j1i = pr.GetLineInfo(j1); j1i.Mop != fmla.Wedge {
 			continue
 		}
 
-		p1L, p1R, _ = fmla.GetWffSubformulae(p1.wff)
-
-		stepD = NewStep(p1L, wD, WedgeElim, 0, p1)
-
-		stepsD = append(stepsD, stepD)
-
-		stepD = NewStep(p1R, wD, WedgeElim, 0, p1)
-
-		stepsD = append(stepsD, stepD)
+		prf = pr.AddLineToProof(prf, j1i.SubL, pr.WedgeElim, j1)
+		prf = pr.AddLineToProof(prf, j1i.SubR, pr.WedgeElim, j1)
 	}
+
+	prfD = prf
 
 	return
 }
 
-var doVeeElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
+func pumpGoalsForVeeElim(prf *pr.Proof, j1i *pr.LineInfo) (prfD *pr.Proof) {
 	var (
-		stepsL                                   []*Step
-		wD                                       World
-		p1, p2, p3                               *Step
-		p1L, p1R, p2L, p2R, p3L, p3R, goal, wffN *fmla.WffTree
-		con                                      fmla.Connective
-		stepD                                    *Step
+		pi         *pr.ProofInfo
+		goal, wffD *fmla.WffTree
 	)
 
-	stepsL = GetSteps(prf, LegalScope)
+	pi = pr.GetProofInfo(prf)
 
-	wD = GetWorldAtPoof(prf)
+	for _, goal = range pi.Goals {
+		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, goal, 0, 0)
 
-DOVEEELIM_OUTER:
-	for _, p1 = range stepsL {
-		if con, _, _ = fmla.GetWffMainOperator(p1.wff); con != fmla.Vee {
-			continue
-		}
+		prf = pr.AddGoalsToProof(prf, wffD)
 
-		p1L, p1R, _ = fmla.GetWffSubformulae(p1.wff)
+		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, goal, 0, 0)
 
-		for _, p2 = range stepsL {
-			if con, _, _ = fmla.GetWffMainOperator(p2.wff); con != fmla.To {
-				continue
-			}
-
-			if p2L, _, _ = fmla.GetWffSubformulae(p2.wff); !fmla.Identical(p2L, p1L) {
-				continue
-			}
-
-			for _, p3 = range stepsL {
-				if con, _, _ = fmla.GetWffMainOperator(p3.wff); con != fmla.To {
-					continue
-				}
-
-				if p3L, p3R, _ = fmla.GetWffSubformulae(p3.wff); !fmla.Identical(p3L, p1R) {
-					continue
-				}
-
-				if !fmla.Identical(p2R, p3R) {
-					continue
-				}
-
-				stepD = NewStep(p2R, wD, VeeElim, 0, p1, p2, p3)
-
-				stepsD = append(stepsD, stepD)
-
-				continue DOVEEELIM_OUTER
-			}
-
-			wffN = fmla.NewConnectiveWff(fmla.To, p1R, prf.goals[0])
-
-			needsD = append(needsD, wffN)
-
-			continue DOVEEELIM_OUTER
-		}
-
-		for _, goal = range prf.goals {
-			wffN = fmla.NewConnectiveWff(fmla.To, p1L, goal)
-
-			needsD = append(needsD, wffN)
-		}
+		prf = pr.AddGoalsToProof(prf, wffD)
 	}
+
+	wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, j1i.SubL, 0, 0)
+
+	prf = pr.AddGoalsToProof(prf, wffD)
+
+	wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, j1i.SubR, 0, 0)
+
+	prf = pr.AddGoalsToProof(prf, wffD)
+
+	wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, j1i.SubL, 0, 0)
+
+	prf = pr.AddGoalsToProof(prf, wffD)
+
+	wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, j1i.SubR, 0, 0)
+
+	prf = pr.AddGoalsToProof(prf, wffD)
+
+	prfD = prf
 
 	return
 }
 
-var doIffElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
+var tryVeeElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 	var (
-		stepsL         []*Step
-		wD             World
-		p1             *Step
-		p1L, p1R, wffD *fmla.WffTree
-		con            fmla.Connective
-		stepD          *Step
+		lns           []*pr.Line
+		j1, j2, j3    *pr.Line
+		j1i, j2i, j3i *pr.LineInfo
+		got2, got3    bool
 	)
 
-	stepsL = GetSteps(prf, LegalScope)
+	lns = pr.GetAdmissibleLines(prf)
 
-	wD = GetWorldAtPoof(prf)
-
-	for _, p1 = range stepsL {
-		if con, _, _ = fmla.GetWffMainOperator(p1.wff); con != fmla.Iff {
+	for _, j1 = range lns {
+		if j1i = pr.GetLineInfo(j1); j1i.Mop != fmla.Vee {
 			continue
 		}
 
-		p1L, p1R, _ = fmla.GetWffSubformulae(p1.wff)
+		got2, got3 = false, false
 
-		wffD = fmla.NewConnectiveWff(fmla.To, p1L, p1R)
+		for _, j2 = range lns {
+			if j2i = pr.GetLineInfo(j2); j2i.Mop == fmla.To && fmla.IsIdentical(j2i.SubL, j1i.SubL) {
+				got2 = true
 
-		stepD = NewStep(wffD, wD, IffElim, 0, p1)
+				break
+			}
+		}
 
-		stepsD = append(stepsD, stepD)
+		for _, j3 = range lns {
+			if j3i = pr.GetLineInfo(j3); j3i.Mop == fmla.To && fmla.IsIdentical(j3i.SubL, j1i.SubR) {
+				got3 = true
 
-		wffD = fmla.NewConnectiveWff(fmla.To, p1R, p1L)
+				break
+			}
+		}
 
-		stepD = NewStep(wffD, wD, IffElim, 0, p1)
-
-		stepsD = append(stepsD, stepD)
+		switch {
+		case got2 && got3 && fmla.IsIdentical(j2i.SubR, j3i.SubR):
+			prf = pr.AddLineToProof(prf, j2i.SubR, pr.VeeElim, j1, j2, j3)
+		default:
+			prf = pumpGoalsForVeeElim(prf, j1i)
+		}
 	}
+
+	prfD = prf
 
 	return
 }
 
-var doBotElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
+var tryIffElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 	var (
-		Fwff  *fmla.WffTree
-		steps []*Step
-		p1    *Step
-		wffD  *fmla.WffTree
-		wD    World
-		stepD *Step
+		lns  []*pr.Line
+		j1   *pr.Line
+		j1i  *pr.LineInfo
+		wffD *fmla.WffTree
 	)
+
+	lns = pr.GetAdmissibleLines(prf)
+
+	for _, j1 = range lns {
+		if j1i = pr.GetLineInfo(j1); j1i.Mop != fmla.Iff {
+			continue
+		}
+
+		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, j1i.SubR, 0, 0)
+
+		prf = pr.AddGoalsToProof(prf, wffD)
+
+		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, j1i.SubL, 0, 0)
+
+		prf = pr.AddGoalsToProof(prf, wffD)
+	}
+
+	prfD = prf
+
+	return
+}
+
+var tryBotElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+	var (
+		pi         *pr.ProofInfo
+		lns        []*pr.Line
+		Fwff, wffD *fmla.WffTree
+		j1         *pr.Line
+		j1i        *pr.LineInfo
+	)
+
+	pi = pr.GetProofInfo(prf)
+
+	lns = pr.GetAdmissibleLines(prf)
 
 	Fwff = fmla.NewAtomicWff(fmla.Bot)
 
-	steps = GetSteps(prf, LegalScope)
-
-	for _, p1 = range steps {
-		if !fmla.Identical(p1.wff, Fwff) {
+	for _, j1 = range lns {
+		if j1i = pr.GetLineInfo(j1); !fmla.IsIdentical(j1i.Wff, Fwff) {
 			continue
 		}
 
-		wD = GetWorld(p1)
+		wffD = pi.Goals[0]
 
-		for _, wffD = range prf.goals {
-			stepD = NewStep(wffD, wD, BotElim, 0, p1)
-
-			stepsD = append(stepsD, stepD)
-
-			break
-		}
+		prf = pr.AddLineToProof(prf, wffD, pr.BotElim, j1)
 
 		break
 	}
 
-	return
-}
-
-var doNegElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	var (
-		steps      []*Step
-		p1         *Step
-		p1L        *fmla.WffTree
-		conX, conY fmla.Connective
-		wD         World
-		stepD      *Step
-	)
-
-	steps = GetSteps(prf, LegalScope)
-
-	for _, p1 = range steps {
-		if conX, _, _ = fmla.GetWffMainOperator(p1.wff); conX != fmla.Neg {
-			continue
-		}
-
-		p1L, _, _ = fmla.GetWffSubformulae(p1.wff)
-
-		if conY, _, _ = fmla.GetWffMainOperator(p1L); conY != fmla.Neg {
-			continue
-		}
-
-		p1L, _, _ = fmla.GetWffSubformulae(p1L)
-
-		wD = GetWorld(p1)
-
-		stepD = NewStep(p1L, wD, NegElim, 0, p1)
-
-		stepsD = append(stepsD, stepD)
-	}
-
-	return
-}
-
-var doForAllElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	panic("Not implemented")
-}
-
-var doExistsElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	panic("Not implemented")
-}
-
-var doIdenElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	panic("Not implemented")
-}
-
-var doBoxElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	var (
-		stepsL []*Step
-		wD     World
-		p1     *Step
-		p1L    *fmla.WffTree
-		con    fmla.Connective
-		stepD  *Step
-	)
-
-	wD = GetWorldAtPoof(prf)
-
-	stepsL = GetSteps(prf, LegalScope)
-
-	for _, p1 = range stepsL {
-		if con, _, _ = fmla.GetWffMainOperator(p1.wff); con != fmla.Box {
-			continue
-		}
-
-		p1L, _, _ = fmla.GetWffSubformulae(p1.wff)
-
-		stepD = NewStep(p1L, wD, BoxElim, 0, p1)
-
-		stepsD = append(stepsD, stepD)
-	}
-
-	return
-}
-
-var doDiamondElim NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	panic("Not implemented")
-}
-
-var doElimM NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	var (
-		steps []*Step
-		p1    *Step
-		p1L   *fmla.WffTree
-		con   fmla.Connective
-		wD    World
-		stepD *Step
-	)
-
-	steps = GetSteps(prf, LegalScope)
-
-	for _, p1 = range steps {
-		if con, _, _ = fmla.GetWffMainOperator(p1.wff); con != fmla.Box {
-			continue
-		}
-
-		p1L, _, _ = fmla.GetWffSubformulae(p1.wff)
-
-		wD = GetWorld(p1)
-
-		stepD = NewStep(p1L, wD, ElimM, 0, p1)
-
-		stepsD = append(stepsD, stepD)
-	}
-
-	return
-}
-
-var doElim4 NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	var (
-		steps []*Step
-		p1    *Step
-		p1L   *fmla.WffTree
-		con   fmla.Connective
-		wD    World
-		stepD *Step
-	)
-
-	steps = GetSteps(prf, LegalScope)
-
-	for _, p1 = range steps {
-		if con, _, _ = fmla.GetWffMainOperator(p1.wff); con != fmla.Diamond {
-			continue
-		}
-
-		p1L, _, _ = fmla.GetWffSubformulae(p1.wff)
-
-		if con, _, _ = fmla.GetWffMainOperator(p1L); con != fmla.Diamond {
-			continue
-		}
-
-		stepD = NewStep(p1L, wD, Elim4, 0, p1)
-
-		stepsD = append(stepsD, stepD)
-	}
-
-	return
-}
-
-var doElimB NDElimFunc = func(prf *Proof) (stepsD []*Step, needsD []*fmla.WffTree) {
-	var (
-		steps []*Step
-		p1    *Step
-		p1L   *fmla.WffTree
-		con   fmla.Connective
-		wD    World
-		stepD *Step
-	)
-
-	steps = GetSteps(prf, LegalScope)
-
-	for _, p1 = range steps {
-		if con, _, _ = fmla.GetWffMainOperator(p1.wff); con != fmla.Diamond {
-			continue
-		}
-
-		p1L, _, _ = fmla.GetWffSubformulae(p1.wff)
-
-		if con, _, _ = fmla.GetWffMainOperator(p1L); con != fmla.Box {
-			continue
-		}
-
-		p1L, _, _ = fmla.GetWffSubformulae(p1L)
-
-		wD = GetWorld(p1)
-
-		stepD = NewStep(p1L, wD, ElimB, 0, p1)
-
-		stepsD = append(stepsD, stepD)
-	}
+	prfD = prf
 
 	return
 }

@@ -3,19 +3,27 @@ package main
 import (
 	"Deriver/fmla"
 	"fmt"
+	"strings"
 )
 
 func main() {
 	var (
 		wffs chan *fmla.WffTree
 		wff  *fmla.WffTree
+		s    string
 	)
 
-	wffs = fmla.BuildCompositeWffs(3, 2, 0, 0)
-
-	wffs = fmla.KeepCanonicalWffs(wffs)
+	wffs = fmla.BuildCompositeWffs(2, 2, 2, 2)
 
 	for wff = range wffs {
-		fmt.Printf("%s\n", fmla.GetWffString(wff))
+		s = fmla.GetWffString(fmla.MakeCanonical(wff))
+
+		fmt.Println(s)
+
+		if strings.Contains(s, "b=a↔a=b") {
+			fmt.Println("Found!")
+
+			break
+		}
 	}
 }
