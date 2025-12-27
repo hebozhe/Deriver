@@ -6,306 +6,284 @@ import (
 	"slices"
 )
 
-var tryTopIntro NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+var tryTopIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
-		wffD *fmla.WffTree
+		wff *fmla.WffTree
 	)
 
-	wffD = fmla.NewAtomicWff(fmla.Top)
+	wff = fmla.NewAtomicWff(fmla.Top)
 
-	prf = pr.AddLineToProof(prf, wffD, pr.TopIntro)
+	_ = prf.MustAddNewLine(wff, pr.TopIntro)
 
-	prfD = prf
+	added = 1
 
 	return
 }
 
-var tryToIntro NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+var tryToIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
-		pi, ipi  *pr.ProofInfo
+		prfsI    []*pr.Proof
 		prfI     *pr.Proof
 		j1, j2   *pr.Line
 		j1i, j2i *pr.LineInfo
-		got2     bool
+		met      bool
 		wffD     *fmla.WffTree
 	)
 
-	pi = pr.GetProofInfo(prf)
+	prfsI = prf.GetInnerProofs(pr.ToIntro)
 
-	for _, prfI = range pi.Inner {
-		if ipi = pr.GetProofInfo(prfI); ipi.Purp != pr.ToIntro {
+	for _, prfI = range prfsI {
+		if j1, j2, met = prfI.IntroGoalMet(); !met {
 			continue
 		}
 
-		j1 = ipi.Lns[0]
+		j1i, j2i = j1.GetLineInfo(), j2.GetLineInfo()
 
-		got2 = false
+		wffD = fmla.NewCompositeWff(fmla.To, j1i.Wff, j2i.Wff, 0, 0)
 
-		for _, j2 = range ipi.Lns {
-			if j2i = pr.GetLineInfo(j2); fmla.IsIdentical(j2i.Wff, ipi.Goals[0]) {
-				got2 = true
+		_ = prf.MustAddNewLine(wffD, pr.ToIntro, j1, j2)
 
-				break
-			}
-		}
-
-		switch got2 {
-		case true:
-			j1i = pr.GetLineInfo(j1)
-
-			wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, j2i.Wff, 0, 0)
-
-			prf = pr.AddLineToProof(prf, wffD, pr.ToIntro, j1, j2)
-		case false:
-			// Do nothing... until a strategy arises that would make sense here.
-		}
+		added += 1
 	}
-
-	prfD = prf
 
 	return
 }
 
-var tryWedgeIntro NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
-	var (
-		pi                 *pr.ProofInfo
-		lns                []*pr.Line
-		wffD, wffDL, wffDR *fmla.WffTree
-		mop                fmla.Symbol
-		j1, j2             *pr.Line
-		j1i, j2i           *pr.LineInfo
-		got1, got2         bool
-	)
-
-	pi = pr.GetProofInfo(prf)
-
-	lns = pr.GetAdmissibleLines(prf)
-
-	for _, wffD = range pi.Goals {
-		if mop = fmla.GetWffMainOperator(wffD); mop != fmla.Wedge {
-			continue
-		}
-
-		wffDL, wffDR = fmla.GetWffSubformulae(wffD)
-
-		got1, got2 = false, false
-
-		for _, j1 = range lns {
-			if j1i = pr.GetLineInfo(j1); fmla.IsIdentical(j1i.Wff, wffDL) {
-				got1 = true
-
-				break
-			}
-		}
-
-		for _, j2 = range lns {
-			if j2i = pr.GetLineInfo(j2); fmla.IsIdentical(j2i.Wff, wffDR) {
-				got2 = true
-
-				break
-			}
-		}
-
-		switch {
-		case got1 && got2:
-			prf = pr.AddLineToProof(prf, wffD, pr.WedgeIntro, j1, j2)
-		case got1 && !got2:
-			prf = pr.AddGoalsToProof(prf, wffDR)
-		case !got1 && got2:
-			prf = pr.AddGoalsToProof(prf, wffDL)
-		case !got1 && !got2:
-			prf = pr.AddGoalsToProof(prf, wffDL, wffDR)
-		}
-	}
-
-	prfD = prf
-
-	return
-}
-
-var tryVeeIntro NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
-	var (
-		pi                 *pr.ProofInfo
-		wffD, wffDL, wffDR *fmla.WffTree
-		j1                 *pr.Line
-		j1i                *pr.LineInfo
-		got1               bool
-	)
-
-	pi = pr.GetProofInfo(prf)
-
-	for _, wffD = range pi.Goals {
-		if fmla.GetWffMainOperator(wffD) != fmla.Vee {
-			continue
-		}
-
-		wffDL, wffDR = fmla.GetWffSubformulae(wffD)
-
-		for _, j1 = range pi.Lns {
-			if j1i = pr.GetLineInfo(j1); fmla.IsIdentical(j1i.Wff, wffDL) || fmla.IsIdentical(j1i.Wff, wffDR) {
-				got1 = true
-
-				break
-			}
-		}
-
-		switch got1 {
-		case true:
-			prf = pr.AddLineToProof(prf, wffD, pr.VeeIntro, j1)
-		case false:
-			prf = pr.AddGoalsToProof(prf, wffDL, wffDR)
-
-			// In CPL, a double-negated disjunction is an acceptable goal.
-			wffD = fmla.NewCompositeWff(fmla.Neg, wffD, nil, 0, 0)
-			wffD = fmla.NewCompositeWff(fmla.Neg, wffD, nil, 0, 0)
-
-			prf = pr.AddGoalsToProof(prf, wffD)
-		}
-	}
-
-	prfD = prf
-
-	return
-}
-
-var tryIffIntro NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
-	var (
-		pi                 *pr.ProofInfo
-		lns                []*pr.Line
-		wffD, wffDL, wffDR *fmla.WffTree
-		j1, j2             *pr.Line
-		j1i, j2i           *pr.LineInfo
-		got1, got2         bool
-	)
-
-	pi = pr.GetProofInfo(prf)
-
-	lns = pr.GetAdmissibleLines(prf)
-
-	for _, wffD = range pi.Goals {
-		if fmla.GetWffMainOperator(wffD) != fmla.Iff {
-			continue
-		}
-
-		wffDL, wffDR = fmla.GetWffSubformulae(wffD)
-
-		got1, got2 = false, false
-
-		for _, j1 = range lns {
-			if j1i = pr.GetLineInfo(j1); j1i.Mop == fmla.To &&
-				fmla.IsIdentical(j1i.SubL, wffDL) &&
-				fmla.IsIdentical(j1i.SubR, wffDR) {
-
-				got1 = true
-
-				break
-			}
-		}
-
-		for _, j2 = range lns {
-			if j2i = pr.GetLineInfo(j2); j2i.Mop == fmla.To &&
-				fmla.IsIdentical(j2i.SubL, wffDR) &&
-				fmla.IsIdentical(j2i.SubR, wffDL) {
-
-				got2 = true
-
-				break
-			}
-		}
-
-		switch {
-		case got1 && got2:
-			prf = pr.AddLineToProof(prf, wffD, pr.IffIntro, j1, j2)
-		case got1 && !got2:
-			wffD = fmla.NewCompositeWff(fmla.To, wffDR, wffDL, 0, 0)
-
-			prf = pr.AddGoalsToProof(prf, wffD)
-		case !got1 && got2:
-			wffD = fmla.NewCompositeWff(fmla.To, wffDL, wffDR, 0, 0)
-
-			prf = pr.AddGoalsToProof(prf, wffD)
-		case !got1 && !got2:
-			wffD = fmla.NewCompositeWff(fmla.To, wffDR, wffDL, 0, 0)
-
-			prf = pr.AddGoalsToProof(prf, wffD)
-
-			wffD = fmla.NewCompositeWff(fmla.To, wffDL, wffDR, 0, 0)
-
-			prf = pr.AddGoalsToProof(prf, wffD)
-		}
-	}
-
-	prfD = prf
-
-	return
-}
-
-var tryReit NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
-	var (
-		pi  *pr.ProofInfo
-		lns []*pr.Line
-		j1  *pr.Line
-		j1i *pr.LineInfo
-	)
-
-	pi = pr.GetProofInfo(prf)
-
-	lns = pr.GetAdmissibleLines(prf)
-
-	for _, j1 = range lns {
-		if slices.Contains(pi.Lns, j1) {
-			continue
-		}
-
-		j1i = pr.GetLineInfo(j1)
-
-		prf = pr.AddLineToProof(prf, j1i.Wff, pr.Reit, j1)
-	}
-
-	prfD = prf
-
-	return
-}
-
-var tryBotIntro NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+var tryWedgeIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
 		lns      []*pr.Line
 		j1, j2   *pr.Line
 		j1i, j2i *pr.LineInfo
-		got2     bool
 		wffD     *fmla.WffTree
 	)
 
-	lns = pr.GetAdmissibleLines(prf)
+	lns = prf.GetLegalLines()
 
 	for _, j1 = range lns {
-		j1i = pr.GetLineInfo(j1)
+		j1i = j1.GetLineInfo()
 
 		for _, j2 = range lns {
-			if j2i = pr.GetLineInfo(j2); j2i.Mop == fmla.Neg && fmla.IsIdentical(j2i.SubL, j1i.Wff) {
+			j2i = j2.GetLineInfo()
+
+			wffD = fmla.NewCompositeWff(fmla.Wedge, j1i.Wff, j2i.Wff, 0, 0)
+
+			if prf.MeetsGoal(wffD) {
+				_ = prf.MustAddNewLine(wffD, pr.WedgeIntro, j1, j2)
+
+				added += 1
+			}
+		}
+	}
+
+	return
+}
+
+var tryVeeIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
+	var (
+		goals              []*fmla.WffTree
+		lns                []*pr.Line
+		mop                fmla.Symbol
+		wffD, wffDL, wffDR *fmla.WffTree
+		j1                 *pr.Line
+		j1i                *pr.LineInfo
+	)
+
+	goals = prf.GetAllGoals()
+
+	lns = prf.GetLegalLines()
+
+	for _, wffD = range goals {
+		if mop = fmla.GetWffMop(wffD); mop != fmla.Vee {
+			continue
+		}
+
+		wffDL, wffDR = fmla.GetWffSubformulae(wffD)
+
+		for _, j1 = range lns {
+			if j1i = j1.GetLineInfo(); fmla.IsIdentical(j1i.Wff, wffDL) || fmla.IsIdentical(j1i.Wff, wffDR) {
+				_ = prf.MustAddNewLine(wffD, pr.VeeIntro, j1)
+
+				added += 1
+			}
+		}
+	}
+
+	return
+}
+
+var tryIffIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
+	var (
+		goals              []*fmla.WffTree
+		lns                []*pr.Line
+		mop                fmla.Symbol
+		wffD, wffDL, wffDR *fmla.WffTree
+		j1, j2             *pr.Line
+		j1i, j2i           *pr.LineInfo
+		got1, got2         bool
+	)
+
+	goals = prf.GetAllGoals()
+
+	lns = prf.GetLegalLines()
+
+	for _, wffD = range goals {
+		if mop = fmla.GetWffMop(wffD); mop != fmla.Iff {
+			continue
+		}
+
+		wffDL, wffDR = fmla.GetWffSubformulae(wffD)
+
+		got1, got2 = false, false
+
+		for _, j1 = range lns {
+			if j1i = j1.GetLineInfo(); j1i.Mop == fmla.To &&
+				fmla.IsIdentical(j1i.SubL, wffDL) &&
+				fmla.IsIdentical(j1i.SubR, wffDR) {
+				got1 = true
+
+				break
+			}
+		}
+
+		for _, j2 = range lns {
+			if j2i = j2.GetLineInfo(); j2i.Mop == fmla.To &&
+				fmla.IsIdentical(j2i.SubL, wffDR) &&
+				fmla.IsIdentical(j2i.SubR, wffDL) {
 				got2 = true
 
 				break
 			}
 		}
 
-		switch got2 {
-		case true:
-			wffD = fmla.NewAtomicWff(fmla.Bot)
+		switch {
+		case got1 && got2:
+			_ = prf.MustAddNewLine(wffD, pr.IffIntro, j1, j2)
 
-			prf = pr.AddLineToProof(prf, wffD, pr.BotIntro, j1, j2)
-		case false:
-			wffD = fmla.NewCompositeWff(fmla.Neg, j1i.Wff, nil, 0, 0)
+			added += 1
+		case got1:
+			wffD = fmla.NewCompositeWff(fmla.To, wffDR, wffDL, 0, 0)
 
-			prf = pr.AddGoalsToProof(prf, wffD)
+			_ = prf.ExtendSubgoals(wffD)
+		case got2:
+			wffD = fmla.NewCompositeWff(fmla.To, wffDL, wffDR, 0, 0)
 
-			if j1i.Mop == fmla.Neg {
-				prf = pr.AddGoalsToProof(prf, j1i.SubL)
+			_ = prf.ExtendSubgoals(wffD)
+		default:
+			wffD = fmla.NewCompositeWff(fmla.To, wffDR, wffDL, 0, 0)
+
+			_ = prf.ExtendSubgoals(wffD)
+
+			wffD = fmla.NewCompositeWff(fmla.To, wffDL, wffDR, 0, 0)
+
+			_ = prf.ExtendSubgoals(wffD)
+		}
+	}
+
+	return
+}
+
+var tryReit ndRuleFunc = func(prf *pr.Proof) (added uint) {
+	var (
+		legs, locs []*pr.Line
+		j1         *pr.Line
+		j1i        *pr.LineInfo
+	)
+
+	legs, locs = prf.GetLegalLines(), prf.GetLocalLines()
+
+	for _, j1 = range legs {
+		if slices.Contains(locs, j1) {
+			continue
+		}
+
+		j1i = j1.GetLineInfo()
+
+		_ = prf.MustAddNewLine(j1i.Wff, pr.Reit, j1)
+
+		added += 1
+	}
+
+	return
+}
+
+var tryBotIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
+	var (
+		lns      []*pr.Line
+		j1, j2   *pr.Line
+		dex      int
+		j1i, j2i *pr.LineInfo
+		wffD     *fmla.WffTree
+	)
+
+	lns = prf.GetLegalLines()
+
+TRYBOTINTRO_OUTER:
+	for dex, j1 = range lns {
+		j1i = j1.GetLineInfo()
+
+		for _, j2 = range lns[dex+1:] {
+			j2i = j2.GetLineInfo()
+
+			if j1i.Mop == fmla.Neg && fmla.IsIdentical(j1i.SubL, j2i.Wff) {
+				wffD = fmla.NewAtomicWff(fmla.Bot)
+
+				_ = prf.MustAddNewLine(wffD, pr.BotIntro, j1, j2)
+
+				added += 1
+
+				break TRYBOTINTRO_OUTER
+			}
+
+			if j2i.Mop == fmla.Neg && fmla.IsIdentical(j2i.SubL, j1i.Wff) {
+				wffD = fmla.NewAtomicWff(fmla.Bot)
+
+				_ = prf.MustAddNewLine(wffD, pr.BotIntro, j2, j1)
+
+				added += 1
+
+				break TRYBOTINTRO_OUTER
 			}
 		}
 	}
 
-	prfD = prf
+	if added == 0 {
+		for _, j1 = range lns {
+			j1i = j1.GetLineInfo()
+
+			wffD = fmla.NewCompositeWff(fmla.Neg, j1i.Wff, nil, 0, 0)
+
+			_ = prf.ExtendSubgoals(wffD)
+		}
+	}
+
+	return
+}
+
+var tryNegIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
+	var (
+		prfsI  []*pr.Proof
+		prfI   *pr.Proof
+		j1, j2 *pr.Line
+		j1i    *pr.LineInfo
+		met    bool
+		wffD   *fmla.WffTree
+	)
+
+	prfsI = prf.GetInnerProofs(pr.NegIntro)
+
+	for _, prfI = range prfsI {
+		if j1, j2, met = prfI.IntroGoalMet(); !met {
+			continue
+		}
+
+		j1i = j1.GetLineInfo()
+
+		wffD = fmla.NewCompositeWff(fmla.Neg, j1i.Wff, nil, 0, 0)
+
+		_ = prf.MustAddNewLine(wffD, pr.NegIntro, j1, j2)
+
+		added += 1
+	}
 
 	return
 }

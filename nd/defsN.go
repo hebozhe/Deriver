@@ -1,7 +1,5 @@
 package nd
 
-import (
-	"Deriver/nd/pr"
-)
+import "Deriver/nd/pr"
 
-type NDFunc = func(prf *pr.Proof) (prfD *pr.Proof)
+type ndRuleFunc func(prf *pr.Proof) (added uint)

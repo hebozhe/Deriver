@@ -110,7 +110,7 @@ The equivalency $\Box A \leftrightarrow \neg \Diamond \neg A$ is not derivable i
 ### Classical Modal Logic K (L+CK) Rules
 
 - $\Diamond I$:
-  - $\neg \Box A \vdash \Diamond \neg A$
+  - $\neg \Box \neg A \vdash \Diamond A$
 
 ### Supplemental Minimal/Intuitionistic Modal Logic K (L+IK) Rules
 

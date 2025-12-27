@@ -2,18 +2,18 @@ package pr
 
 import "Deriver/fmla"
 
-type Domain struct {
+type domain struct {
 	pcs map[fmla.Predicate]bool // A map as to whether a predicate is present in the proof.
 	acs map[fmla.Argument]bool  // A map as to whether an argument is present in the proof.
 }
 
-func newDomain() (dom *Domain) {
+func newDomain() (dom *domain) {
 	var (
 		pc fmla.Predicate
 		ac fmla.Argument
 	)
 
-	dom = &Domain{
+	dom = &domain{
 		pcs: map[fmla.Predicate]bool{},
 		acs: map[fmla.Argument]bool{},
 	}
@@ -29,7 +29,7 @@ func newDomain() (dom *Domain) {
 	return
 }
 
-func updateDomain(domA *Domain, wff *fmla.WffTree) (domB *Domain) {
+func updateDomain(dom *domain, wff *fmla.WffTree) (domU *domain) {
 	var (
 		pcs []fmla.Predicate
 		acs []fmla.Argument
@@ -38,64 +38,38 @@ func updateDomain(domA *Domain, wff *fmla.WffTree) (domB *Domain) {
 	)
 
 	// Deeply copy domA to domB.
-	domB = newDomain()
+	domU = newDomain()
 
-	for pc = range domA.pcs {
-		domB.pcs[pc] = domA.pcs[pc]
+	for pc = range dom.pcs {
+		domU.pcs[pc] = dom.pcs[pc]
 	}
 
-	for ac = range domA.acs {
-		domB.acs[ac] = domA.acs[ac]
+	for ac = range dom.acs {
+		domU.acs[ac] = dom.acs[ac]
 	}
 
 	// Update domB with the new constants in wff.
 	pcs, acs = fmla.GetConstants(wff)
 
 	for _, pc = range pcs {
-		domB.pcs[pc] = true
+		domU.pcs[pc] = true
 	}
 
 	for _, ac = range acs {
-		domB.acs[ac] = true
+		domU.acs[ac] = true
 	}
 
 	return
 }
 
-func findArbConsts(dom *Domain, subdom *Domain) (apc fmla.Predicate, aac fmla.Argument) {
-	var (
-		pc  fmla.Predicate
-		ac  fmla.Argument
-		has bool
-	)
-
-	for pc, has = range dom.pcs {
-		if has && !subdom.pcs[pc] {
-			apc = pc
-
-			break
-		}
-	}
-
-	for ac, has = range dom.acs {
-		if has && !subdom.acs[ac] {
-			aac = ac
-
-			break
-		}
-	}
-
-	return
-}
-
-func GetArbitraryConst(prf *Proof) (apc fmla.Predicate, aac fmla.Argument) {
+func findArbConsts(dom *domain, wff *fmla.WffTree) (apc fmla.Predicate, aac fmla.Argument) {
 	var (
 		pc fmla.Predicate
 		ac fmla.Argument
 	)
 
 	for _, pc = range fmla.PredConsts {
-		if !prf.dom.pcs[pc] {
+		if !dom.pcs[pc] {
 			apc = pc
 
 			break
@@ -103,11 +77,24 @@ func GetArbitraryConst(prf *Proof) (apc fmla.Predicate, aac fmla.Argument) {
 	}
 
 	for _, ac = range fmla.ArgConsts {
-		if !prf.dom.acs[ac] {
+		if !dom.acs[ac] {
 			aac = ac
 
 			break
 		}
+	}
+
+	return
+}
+
+func (prf *Proof) MustSelectArbConsts() (apc fmla.Predicate, aac fmla.Argument) {
+	apc, aac = findArbConsts(prf.dom, prf.iGoal)
+
+	switch {
+	case apc == 0 && aac == 0:
+		panic("No arbitrary constants available.")
+	case apc != 0 && aac != 0:
+		panic("Both arbitrary constant kinds found.")
 	}
 
 	return

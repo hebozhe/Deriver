@@ -100,7 +100,7 @@ func GetWffKind(wff *WffTree) (kind WffKind) {
 	return
 }
 
-func GetWffMainOperator(wff *WffTree) (sym Symbol) {
+func GetWffMop(wff *WffTree) (sym Symbol) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -110,7 +110,7 @@ func GetWffMainOperator(wff *WffTree) (sym Symbol) {
 	return
 }
 
-func GetWffQuaAndVars(wff *WffTree) (qua Symbol, pVar Predicate, aVar Argument) {
+func GetWffMopAndVars(wff *WffTree) (qua Symbol, pVar Predicate, aVar Argument) {
 	if wff == nil || wff.kind != Quantified {
 		panic("Invalid WffTree")
 	}
@@ -356,15 +356,19 @@ func GetWffLength(wff *WffTree) (lenW uint) {
 }
 
 func GetWffDepth(wff *WffTree) (depW uint) {
+	var (
+		depL, depR uint
+	)
+
 	switch wff.kind {
 	case Atomic:
 		depW = 1
-	case Unary:
+	case Unary, Quantified:
 		depW = GetWffDepth(wff.subL) + 1
 	case Binary:
-		depW = max(GetWffDepth(wff.subL), GetWffDepth(wff.subR)) + 1
-	case Quantified:
-		depW = GetWffDepth(wff.subL) + 1
+		depL, depR = GetWffDepth(wff.subL), GetWffDepth(wff.subR)
+
+		depW = max(depL, depR) + 1
 	default:
 		panic("Invalid WffTree")
 	}

@@ -6,7 +6,7 @@ type NDRule uint8
 // as they will play a part in determining the kind of logic
 // that is needed to derive a given theorem.
 const (
-	Solve NDRule = 0 // This is a vacuous rule for the base proof.
+	Solve NDRule = 0 // This is a vacuous purpose for the base proof.
 	// Assumpions
 	Assumption NDRule = iota + 1
 	Premise
@@ -108,17 +108,17 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	ElimB:        1,
 }
 
-func correctJCount(rule, purp NDRule, lenP int) (ok bool) {
+func correctJCount(rule, purp NDRule, lenJ int) (ok bool) {
 	var (
 		lenC int
 	)
 
 	if rule == Assumption {
 		if lenC, ok = purposePCount[purp]; ok {
-			ok = lenP == lenC
+			ok = lenJ == lenC
 		}
 	} else if lenC, ok = rulePCount[rule]; ok {
-		ok = lenP == lenC
+		ok = lenJ == lenC
 	}
 
 	return

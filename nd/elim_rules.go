@@ -5,7 +5,7 @@ import (
 	"Deriver/nd/pr"
 )
 
-var tryToElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+var tryToElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
 		lns      []*pr.Line
 		j1, j2   *pr.Line
@@ -13,17 +13,17 @@ var tryToElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 		got2     bool
 	)
 
-	lns = pr.GetAdmissibleLines(prf)
+	lns = prf.GetLegalLines()
 
 	for _, j1 = range lns {
-		if j1i = pr.GetLineInfo(j1); j1i.Mop != fmla.To {
+		if j1i = j1.GetLineInfo(); j1i.Mop != fmla.To {
 			continue
 		}
 
 		got2 = false
 
 		for _, j2 = range lns {
-			if j2i = pr.GetLineInfo(j2); fmla.IsIdentical(j2i.Wff, j1i.SubL) {
+			if j2i = j2.GetLineInfo(); fmla.IsIdentical(j2i.Wff, j1i.SubL) {
 				got2 = true
 
 				break
@@ -32,98 +32,58 @@ var tryToElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 
 		switch got2 {
 		case true:
-			prf = pr.AddLineToProof(prf, j1i.SubR, pr.ToElim, j1, j2)
+			_ = prf.MustAddNewLine(j1i.SubR, pr.ToElim, j1, j2)
+
+			added += 1
 		case false:
-			prf = pr.AddGoalsToProof(prf, j1i.SubL)
+			_ = prf.ExtendSubgoals(j1i.SubL)
 		}
 	}
-
-	prfD = prf
 
 	return
 }
 
-var tryWedgeElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+var tryWedgeElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
 		lns []*pr.Line
 		j1  *pr.Line
 		j1i *pr.LineInfo
 	)
 
-	lns = pr.GetAdmissibleLines(prf)
+	lns = prf.GetLegalLines()
 
 	for _, j1 = range lns {
-		if j1i = pr.GetLineInfo(j1); j1i.Mop != fmla.Wedge {
+		if j1i = j1.GetLineInfo(); j1i.Mop != fmla.Wedge {
 			continue
 		}
 
-		prf = pr.AddLineToProof(prf, j1i.SubL, pr.WedgeElim, j1)
-		prf = pr.AddLineToProof(prf, j1i.SubR, pr.WedgeElim, j1)
-	}
+		_ = prf.MustAddNewLine(j1i.SubL, pr.WedgeElim, j1)
+		_ = prf.MustAddNewLine(j1i.SubR, pr.WedgeElim, j1)
 
-	prfD = prf
+		added += 2
+	}
 
 	return
 }
 
-func pumpGoalsForVeeElim(prf *pr.Proof, j1i *pr.LineInfo) (prfD *pr.Proof) {
-	var (
-		pi         *pr.ProofInfo
-		goal, wffD *fmla.WffTree
-	)
-
-	pi = pr.GetProofInfo(prf)
-
-	for _, goal = range pi.Goals {
-		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, goal, 0, 0)
-
-		prf = pr.AddGoalsToProof(prf, wffD)
-
-		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, goal, 0, 0)
-
-		prf = pr.AddGoalsToProof(prf, wffD)
-	}
-
-	wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, j1i.SubL, 0, 0)
-
-	prf = pr.AddGoalsToProof(prf, wffD)
-
-	wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, j1i.SubR, 0, 0)
-
-	prf = pr.AddGoalsToProof(prf, wffD)
-
-	wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, j1i.SubL, 0, 0)
-
-	prf = pr.AddGoalsToProof(prf, wffD)
-
-	wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, j1i.SubR, 0, 0)
-
-	prf = pr.AddGoalsToProof(prf, wffD)
-
-	prfD = prf
-
-	return
-}
-
-var tryVeeElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+var tryVeeElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
 		lns           []*pr.Line
 		j1, j2, j3    *pr.Line
 		j1i, j2i, j3i *pr.LineInfo
 		got2, got3    bool
+		wffD, goal    *fmla.WffTree
 	)
 
-	lns = pr.GetAdmissibleLines(prf)
+	lns = prf.GetLegalLines()
 
 	for _, j1 = range lns {
-		if j1i = pr.GetLineInfo(j1); j1i.Mop != fmla.Vee {
+		if j1i = j1.GetLineInfo(); j1i.Mop != fmla.Vee {
 			continue
 		}
 
-		got2, got3 = false, false
-
 		for _, j2 = range lns {
-			if j2i = pr.GetLineInfo(j2); j2i.Mop == fmla.To && fmla.IsIdentical(j2i.SubL, j1i.SubL) {
+			if j2i = j2.GetLineInfo(); j2i.Mop == fmla.To && fmla.IsIdentical(j2i.SubL, j1i.SubL) {
 				got2 = true
 
 				break
@@ -131,7 +91,7 @@ var tryVeeElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 		}
 
 		for _, j3 = range lns {
-			if j3i = pr.GetLineInfo(j3); j3i.Mop == fmla.To && fmla.IsIdentical(j3i.SubL, j1i.SubR) {
+			if j3i = j3.GetLineInfo(); j3i.Mop == fmla.To && fmla.IsIdentical(j3i.SubL, j1i.SubR) {
 				got3 = true
 
 				break
@@ -140,18 +100,39 @@ var tryVeeElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 
 		switch {
 		case got2 && got3 && fmla.IsIdentical(j2i.SubR, j3i.SubR):
-			prf = pr.AddLineToProof(prf, j2i.SubR, pr.VeeElim, j1, j2, j3)
+			_ = prf.MustAddNewLine(j2i.SubR, pr.VeeElim, j1, j2, j3)
+
+			added += 1
+		case got2 && got3:
+			wffD = fmla.NewCompositeWff(fmla.Vee, j2i.SubR, j3i.SubR, 0, 0)
+			wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, wffD, 0, 0)
+
+			_ = prf.ExtendSubgoals(wffD)
+
+			wffD = fmla.NewCompositeWff(fmla.Vee, j2i.SubR, j3i.SubR, 0, 0)
+			wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, wffD, 0, 0)
+
+			_ = prf.ExtendSubgoals(wffD)
+		// There's probably more to exploit, but I'm a lazy bitch.
+		// Motherfucking DS rules for MPL vs. IPL...
+		// Disjunction contraction when j1i.SubL == j1i.SubR...
 		default:
-			prf = pumpGoalsForVeeElim(prf, j1i)
+			for _, goal = range prf.GetAllGoals() {
+				wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, goal, 0, 0)
+
+				_ = prf.ExtendSubgoals(wffD)
+
+				wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, goal, 0, 0)
+
+				_ = prf.ExtendSubgoals(wffD)
+			}
 		}
 	}
-
-	prfD = prf
 
 	return
 }
 
-var tryIffElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+var tryIffElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
 		lns  []*pr.Line
 		j1   *pr.Line
@@ -159,55 +140,83 @@ var tryIffElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
 		wffD *fmla.WffTree
 	)
 
-	lns = pr.GetAdmissibleLines(prf)
+	lns = prf.GetLegalLines()
 
 	for _, j1 = range lns {
-		if j1i = pr.GetLineInfo(j1); j1i.Mop != fmla.Iff {
+		if j1i = j1.GetLineInfo(); j1i.Mop != fmla.Iff {
 			continue
 		}
 
 		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, j1i.SubR, 0, 0)
 
-		prf = pr.AddGoalsToProof(prf, wffD)
+		_ = prf.ExtendSubgoals(wffD)
 
 		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, j1i.SubL, 0, 0)
 
-		prf = pr.AddGoalsToProof(prf, wffD)
+		_ = prf.ExtendSubgoals(wffD)
 	}
-
-	prfD = prf
 
 	return
 }
 
-var tryBotElim NDFunc = func(prf *pr.Proof) (prfD *pr.Proof) {
+var tryBotElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
-		pi         *pr.ProofInfo
-		lns        []*pr.Line
 		Fwff, wffD *fmla.WffTree
+		goals      []*fmla.WffTree
+		lns        []*pr.Line
 		j1         *pr.Line
 		j1i        *pr.LineInfo
 	)
 
-	pi = pr.GetProofInfo(prf)
-
-	lns = pr.GetAdmissibleLines(prf)
-
 	Fwff = fmla.NewAtomicWff(fmla.Bot)
 
+	lns = prf.GetLegalLines()
+
 	for _, j1 = range lns {
-		if j1i = pr.GetLineInfo(j1); !fmla.IsIdentical(j1i.Wff, Fwff) {
+		if j1i = j1.GetLineInfo(); !fmla.IsIdentical(j1i.Wff, Fwff) {
 			continue
 		}
 
-		wffD = pi.Goals[0]
+		goals = prf.GetAllGoals()
 
-		prf = pr.AddLineToProof(prf, wffD, pr.BotElim, j1)
+		for _, wffD = range goals {
+			_ = prf.MustAddNewLine(wffD, pr.BotElim, j1)
+
+			added += 1
+		}
 
 		break
 	}
 
-	prfD = prf
+	return
+}
+
+var tryNegElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
+	var (
+		lns  []*pr.Line
+		j1   *pr.Line
+		j1i  *pr.LineInfo
+		mop  fmla.Symbol
+		wffD *fmla.WffTree
+	)
+
+	lns = prf.GetLegalLines()
+
+	for _, j1 = range lns {
+		if j1i = j1.GetLineInfo(); j1i.Mop != fmla.Neg {
+			continue
+		}
+
+		if mop = fmla.GetWffMop(j1i.SubL); mop != fmla.Neg {
+			continue
+		}
+
+		wffD, _ = fmla.GetWffSubformulae(j1i.SubL)
+
+		_ = prf.MustAddNewLine(wffD, pr.NegElim, j1)
+
+		added += 1
+	}
 
 	return
 }

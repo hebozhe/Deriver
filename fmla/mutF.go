@@ -1,8 +1,8 @@
 package fmla
 
-func DeepCopy(wff *WffTree) (cwff *WffTree) {
+func DeepCopy(wff *WffTree) (wffC *WffTree) {
 	if wff != nil {
-		cwff = &WffTree{
+		wffC = &WffTree{
 			kind: wff.kind,
 			mop:  wff.mop,
 			pVar: wff.pVar,
@@ -14,42 +14,42 @@ func DeepCopy(wff *WffTree) (cwff *WffTree) {
 			sup:  nil, // The parent is set below.
 		}
 
-		if cwff.subL != nil {
-			cwff.subL.sup = cwff
+		if wffC.subL != nil {
+			wffC.subL.sup = wffC
 		}
 
-		if cwff.subR != nil {
-			cwff.subR.sup = cwff
+		if wffC.subR != nil {
+			wffC.subR.sup = wffC
 		}
 	}
 
 	return
 }
 
-func ReplacePreds(wff *WffTree, pA Predicate, pB Predicate) (rwff *WffTree) {
+func ReplacePreds(wff *WffTree, pA Predicate, pB Predicate) (wffR *WffTree) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
 
 	if wff.sup == nil {
-		rwff = DeepCopy(wff)
+		wffR = DeepCopy(wff)
 	} else {
-		rwff = wff
+		wffR = wff
 	}
 
-	switch rwff.kind {
+	switch wffR.kind {
 	case Atomic:
-		if rwff.pred == pA {
-			rwff.pred = pB
+		if wffR.pred == pA {
+			wffR.pred = pB
 		}
 	case Unary:
-		rwff.subL = ReplacePreds(rwff.subL, pA, pB)
+		wffR.subL = ReplacePreds(wffR.subL, pA, pB)
 	case Binary:
-		rwff.subL = ReplacePreds(rwff.subL, pA, pB)
+		wffR.subL = ReplacePreds(wffR.subL, pA, pB)
 
-		rwff.subR = ReplacePreds(rwff.subR, pA, pB)
+		wffR.subR = ReplacePreds(wffR.subR, pA, pB)
 	case Quantified:
-		rwff.subL = ReplacePreds(rwff.subL, pA, pB)
+		wffR.subL = ReplacePreds(wffR.subL, pA, pB)
 	default:
 		panic("Invalid WffTree")
 	}
@@ -57,9 +57,10 @@ func ReplacePreds(wff *WffTree, pA Predicate, pB Predicate) (rwff *WffTree) {
 	return
 }
 
-func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (rwff *WffTree) {
+func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (wffR *WffTree) {
 	var (
-		arg Argument
+		arg     Argument
+		newArgs ArgString
 	)
 
 	if wff == nil {
@@ -67,36 +68,37 @@ func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (rwff *WffTree) {
 	}
 
 	if wff.sup == nil {
-		rwff = DeepCopy(wff)
+		wffR = DeepCopy(wff)
 	} else {
-		rwff = wff
+		wffR = wff
 	}
 
-	switch wff.kind {
+	switch wffR.kind {
 	case Atomic:
-		// FIX: Build new args string properly
-		newArgs := ArgString("")
-		for _, arg = range argStringToArgs(wff.args) {
+		newArgs = ArgString("")
+
+		for _, arg = range argStringToArgs(wffR.args) {
 			if arg == aA {
 				newArgs += ArgString(aB)
 			} else {
 				newArgs += ArgString(arg)
 			}
 		}
-		rwff.args = newArgs
-	case Unary:
-		rwff.subL = ReplaceArgs(rwff.subL, aA, aB)
-	case Binary:
-		rwff.subL = ReplaceArgs(rwff.subL, aA, aB)
 
-		rwff.subR = ReplaceArgs(rwff.subR, aA, aB)
+		wffR.args = newArgs
+	case Unary:
+		wffR.subL = ReplaceArgs(wffR.subL, aA, aB)
+	case Binary:
+		wffR.subL = ReplaceArgs(wffR.subL, aA, aB)
+
+		wffR.subR = ReplaceArgs(wffR.subR, aA, aB)
 	case Quantified:
-		rwff.subL = ReplaceArgs(rwff.subL, aA, aB)
+		wffR.subL = ReplaceArgs(wffR.subL, aA, aB)
 	default:
 		panic("Invalid WffTree")
 	}
 
-	return rwff
+	return wffR
 }
 
 func IsIdentical(wffA, wffB *WffTree) (is bool) {
@@ -116,6 +118,55 @@ func IsIdentical(wffA, wffB *WffTree) (is bool) {
 			is = wffA.pVar == wffB.pVar &&
 				wffA.aVar == wffB.aVar &&
 				IsIdentical(wffA.subL, wffB.subL)
+		default:
+			panic("Invalid WffTree")
+		}
+	}
+
+	return
+}
+
+func ReplaceWff(wff, wffA, wffB *WffTree) (wffR *WffTree) {
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	if wff.sup == nil {
+		wffR = DeepCopy(wff)
+	} else {
+		wffR = wff
+	}
+
+	if IsIdentical(wffR, wffA) {
+		wffR = &WffTree{
+			kind: Atomic,
+			mop:  wffB.mop,
+			pVar: wffB.pVar,
+			aVar: wffB.aVar,
+			pred: wffB.pred,
+			args: wffB.args,
+			subL: DeepCopy(wffB.subL),
+			subR: DeepCopy(wffB.subR),
+			sup:  wffR.sup,
+		}
+
+		if wffR.subL != nil {
+			wffR.subL.sup = wffR
+		}
+
+		if wffR.subR != nil {
+			wffR.subR.sup = wffR
+		}
+	} else {
+		switch wffR.kind {
+		case Atomic:
+			// There are no sub-formulae to check.
+		case Unary, Quantified:
+			wffR.subL = ReplaceWff(wffR.subL, wffA, wffB)
+		case Binary:
+			wffR.subL = ReplaceWff(wffR.subL, wffA, wffB)
+
+			wffR.subR = ReplaceWff(wffR.subR, wffA, wffB)
 		default:
 			panic("Invalid WffTree")
 		}

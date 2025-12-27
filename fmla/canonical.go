@@ -82,7 +82,9 @@ func MakeCanonical(wff *WffTree) (cwff *WffTree) {
 	lenPC, lenPV, lenAC, lenAV = len(PredConsts), len(PredVars), len(ArgConsts), len(ArgVars)
 
 	// Pass 1: Traverse the tree to build the replacement mappings
-	var buildMaps func(wt *WffTree) = func(wt *WffTree) {
+	var buildMaps func(wt *WffTree)
+
+	buildMaps = func(wt *WffTree) {
 		var (
 			ok   bool
 			args []Argument

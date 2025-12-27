@@ -2,297 +2,353 @@ package pr
 
 import (
 	"Deriver/fmla"
+	"slices"
 )
 
-type World uint
+type world uint
 
 type Line struct {
 	wff *fmla.WffTree // The wff on the line.
-	wld World         // The world in which the wff holds.
+	wld world         // The world in which the wff holds.
 
 	rule       NDRule // The rule used to derive the wff.
 	j1, j2, j3 *Line  // The lines whose wffs justify the wff.
 }
 
 type LineInfo struct {
-	Wff, SubL, SubR *fmla.WffTree
-	Mop             fmla.Symbol
-	Wld             World
-	Rule            NDRule
-	J1, J2, J3      *Line
+	Wff        *fmla.WffTree
+	Mop        fmla.Symbol
+	PVar       fmla.Predicate
+	AVar       fmla.Argument
+	SubL, SubR *fmla.WffTree
+	Wld        world
+
+	Rule       NDRule
+	J1, J2, J3 *Line
 }
 
 type Proof struct {
-	purp  NDRule          // The purpose of the proof.
-	goals []*fmla.WffTree // The goal of the proof.
-	lns   []*Line         // The lines in the proof.
-	wld   World           // The world in which the proof holds.
-	arbPC fmla.Predicate  // The arbitrary predicate constant introduced, if any.
-	arbAC fmla.Argument   // The arbitrary argument constant introduced, if any.
-	dom   *Domain         // The quantificational domain of the proof.
+	purp   NDRule          // The purpose of the proof, the sought rule to apply.
+	iGoal  *fmla.WffTree   // The main formula to be proven via an introduction rule.
+	sGoals []*fmla.WffTree // Subgoals to accomplish other rules elsewhere.
 
-	inner []*Proof // The inner, "child" proofs.
-	outer *Proof   // The outer, "parent" proof.
+	lns   []*Line        // The lines of the proof.
+	wld   world          // The world in which the proof holds.
+	arbPC fmla.Predicate // The arbitrary predicate constant introduced, if any.
+	arbAC fmla.Argument  // The arbitrary argument constant introduced, if any.
+	dom   *domain        // The quantificational domain of the proof.
+
+	inner []*Proof // The inner subproofs of the proof.
+	outer *Proof   // The outer subproof of the proof, if this is an inner proof.
 }
 
-type ProofInfo struct {
-	Purp  NDRule
-	Goals []*fmla.WffTree
-	Lns   []*Line
-	Wld   World
-	ArbPC fmla.Predicate
-	ArbAC fmla.Argument
-	Dom   *Domain
-
-	Inner []*Proof
-	Outer *Proof
-}
-
-func GetLineInfo(ln *Line) (li *LineInfo) {
+func (ln *Line) GetLineInfo() (li *LineInfo) {
 	li = &LineInfo{
 		Wff:  fmla.DeepCopy(ln.wff),
 		Mop:  fmla.NoSymbol,
 		SubL: nil,
 		SubR: nil,
 		Wld:  ln.wld,
+
 		Rule: ln.rule,
 		J1:   ln.j1,
 		J2:   ln.j2,
 		J3:   ln.j3,
 	}
 
-	li.Mop = fmla.GetWffMainOperator(ln.wff)
+	li.Mop, li.PVar, li.AVar = fmla.GetWffMopAndVars(li.Wff)
 
-	li.SubL, li.SubR = fmla.GetWffSubformulae(ln.wff)
-
-	return
-}
-
-func GetProofInfo(prf *Proof) (pi *ProofInfo) {
-	var (
-		goal *fmla.WffTree
-	)
-
-	pi = &ProofInfo{
-		Purp:  prf.purp,
-		Goals: []*fmla.WffTree{},
-		Lns:   prf.lns,
-		Wld:   prf.wld,
-		ArbPC: prf.arbPC,
-		ArbAC: prf.arbAC,
-		Dom:   newDomain(),
-		Inner: append([]*Proof{}, prf.inner...),
-		Outer: prf.outer,
-	}
-
-	for _, goal = range prf.goals {
-		goal = fmla.DeepCopy(goal)
-
-		pi.Goals = append(pi.Goals, goal)
-	}
+	li.SubL, li.SubR = fmla.GetWffSubformulae(li.Wff)
 
 	return
 }
 
-func AddGoalsToProof(prfA *Proof, goals ...*fmla.WffTree) (prfB *Proof) {
+func (prf *Proof) MustAddNewLine(wff *fmla.WffTree, rule NDRule, js ...*Line) (ok bool) {
 	var (
-		goal *fmla.WffTree
+		lenJ       int
+		ln         *Line
+		j1, j2, j3 *Line
 	)
 
-	for _, goal = range goals {
-		goal = fmla.DeepCopy(goal)
+	lenJ = len(js)
 
-		prfA.goals = append(prfA.goals, goal)
-	}
-
-	prfB = prfA
-
-	return
-}
-
-func AddLineToProof(prfA *Proof, wff *fmla.WffTree, rule NDRule, js ...*Line) (prfB *Proof) {
-	var (
-		lenJ           int
-		ln, j1, j2, j3 *Line
-	)
-
-	if lenJ = len(js); !correctJCount(rule, 0, lenJ) {
+	if ok = correctJCount(rule, 0, lenJ); !ok {
 		panic("Incorrect number of justification lines.")
 	}
 
 	switch lenJ {
+	case 0:
+		j1, j2, j3 = nil, nil, nil
 	case 1:
-		j1 = js[0]
+		j1, j2, j3 = js[0], nil, nil
 	case 2:
-		j1, j2 = js[0], js[1]
+		j1, j2, j3 = js[0], js[1], nil
 	case 3:
 		j1, j2, j3 = js[0], js[1], js[2]
+	default:
+		panic("Incorrect number of justification lines.")
 	}
 
 	ln = &Line{
-		wff:  wff,
-		wld:  prfA.wld,
+		wff: fmla.DeepCopy(wff),
+		wld: prf.wld,
+
 		rule: rule,
 		j1:   j1,
 		j2:   j2,
 		j3:   j3,
 	}
 
-	prfA.lns = append(prfA.lns, ln)
+	prf.lns = append(prf.lns, ln)
 
-	// Update the domain within the proof to account for the new wff.
-	prfA.dom = updateDomain(prfA.dom, wff)
-
-	prfB = prfA
+	prf.dom = updateDomain(prf.dom, ln.wff)
 
 	return
 }
 
-func NewProof(goal *fmla.WffTree, ps ...*fmla.WffTree) (prf *Proof) {
+func (prf *Proof) MustAddNewInnerProof(wff, goal *fmla.WffTree, purp NDRule, js ...*Line) (ok bool) {
 	var (
-		lenP, dex int
-		wff       *fmla.WffTree
+		lenJ   int
+		ln     *Line
+		j1, j2 *Line
+		prfI   *Proof
+		apc    fmla.Predicate
+		aac    fmla.Argument
 	)
 
-	goal, lenP = fmla.DeepCopy(goal), len(ps)
+	lenJ = len(js)
+
+	if ok = correctJCount(Assumption, purp, lenJ); !ok {
+		panic("Incorrect number of justification lines.")
+	}
+
+	switch lenJ {
+	case 0:
+		j1, j2 = nil, nil
+	case 1:
+		j1, j2 = js[0], nil
+	case 2:
+		j1, j2 = js[0], js[1]
+	default:
+		panic("Incorrect number of justification lines.")
+	}
+
+	ln = &Line{
+		wff: fmla.DeepCopy(wff),
+		wld: prf.wld,
+
+		rule: Assumption,
+		j1:   j1,
+		j2:   j2,
+		j3:   nil,
+	}
+
+	switch purp {
+	case ForAllIntro:
+		apc, aac = findArbConsts(prf.dom, goal)
+
+		if ok = apc != 0 || aac != 0; !ok {
+			panic("No arbitrary predicate or argument constants found.")
+		}
+
+		if ok = !(apc != 0 && aac != 0); !ok {
+			panic("Both arbitrary predicate and argument constants found.")
+		}
+	case ExistsElim:
+		apc, aac = findArbConsts(prf.dom, wff)
+
+		if apc == 0 && aac == 0 {
+			panic("No arbitrary predicate or argument constants found.")
+		}
+
+		if !(apc == 0 || aac == 0) {
+			panic("Both arbitrary predicate and argument constants found.")
+		}
+	case BoxIntro, DiamondElim:
+		ln.wld += 1
+	}
+
+	prfI = &Proof{
+		purp:   purp,
+		iGoal:  fmla.DeepCopy(goal),
+		sGoals: []*fmla.WffTree{},
+
+		lns:   []*Line{ln},
+		wld:   ln.wld,
+		arbPC: apc,
+		arbAC: aac,
+		dom:   updateDomain(updateDomain(prf.dom, wff), goal),
+
+		inner: []*Proof{},
+		outer: prf,
+	}
+
+	prf.inner = append(prf.inner, prfI)
+
+	return
+}
+
+func NewBaseProof(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *Proof) {
+	var (
+		ln   *Line
+		prem *fmla.WffTree
+	)
 
 	prf = &Proof{
-		purp:  Solve,
-		goals: []*fmla.WffTree{goal},
-		lns:   make([]*Line, lenP+1),
+		purp:   Solve, // Only the base proof has Solve as a purpose.
+		iGoal:  fmla.DeepCopy(goal),
+		sGoals: []*fmla.WffTree{},
+
+		lns:   []*Line{},
 		wld:   0,
-		dom:   newDomain(),
+		arbPC: 0,
+		arbAC: 0,
+		dom:   updateDomain(newDomain(), goal),
 
 		inner: []*Proof{},
 		outer: nil,
 	}
 
-	// To ensure that every proof is non-empty, add a top line with TopIntro,
-	// which is permissible in any proof with no premises.
-	prf.lns[0] = &Line{
-		wff:  fmla.NewAtomicWff(fmla.Top),
-		wld:  0,
+	// As a rule, lns can never be empty, so TopIntro is applied vacuously
+	// when no other wff needs to be introduced for a proof or subproof.
+	ln = &Line{
+		wff: fmla.NewAtomicWff(fmla.Top),
+		wld: 0,
+
 		rule: TopIntro,
 		j1:   nil,
 		j2:   nil,
 		j3:   nil,
 	}
 
-	// From there, add the premises to the proof, if any exist.
-	for dex, wff = range ps {
-		wff = fmla.DeepCopy(ps[dex])
+	prf.lns = append(prf.lns, ln)
 
-		prf.lns[dex+1] = &Line{
-			wff:  wff,
-			wld:  0,
+	for _, prem = range prems {
+		ln = &Line{
+			wff: fmla.DeepCopy(prem),
+			wld: 0,
+
 			rule: Premise,
 			j1:   nil,
 			j2:   nil,
 			j3:   nil,
 		}
+
+		prf.lns = append(prf.lns, ln)
 	}
 
 	return
 }
 
-func AddInnerProofToProof(prfA *Proof, wff, goal *fmla.WffTree, purp NDRule, js ...*Line) (prfB *Proof) {
-	var (
-		lenJ       int
-		lnH        *Line
-		prfH       *Proof
-		j1, j2, j3 *Line
-	)
-
-	if lenJ = len(js); !correctJCount(Assumption, purp, lenJ) {
-		panic("Incorrect number of justification lines.")
-	}
-
-	switch lenJ {
-	case 1:
-		j1 = js[0]
-	case 2:
-		j1, j2 = js[0], js[1]
-	case 3:
-		j1, j2, j3 = js[0], js[1], js[2]
-	}
-
-	lnH = &Line{
-		wff:  wff,
-		wld:  prfA.wld,
-		rule: Assumption,
-		j1:   j1,
-		j2:   j2,
-		j3:   j3,
-	}
-
-	goal = fmla.DeepCopy(goal)
-
-	prfH = &Proof{
-		purp:  purp,
-		goals: []*fmla.WffTree{goal},
-		lns:   []*Line{lnH},
-		wld:   prfA.wld,
-		arbPC: 0,
-		arbAC: 0,
-		dom:   newDomain(),
-
-		inner: []*Proof{},
-		outer: prfA,
-	}
-
-	// The claimed domain of prfH is the domain of prfA plus the constants in wff.
-	prfH.dom = updateDomain(prfA.dom, wff)
-
-	switch purp {
-	case DiamondElim, BoxIntro:
-		prfH.wld += 1
-		prfH.lns[0].wld = prfH.wld
-	case ExistsElim, ForAllIntro:
-		prfH.arbPC, prfH.arbAC = findArbConsts(prfH.dom, prfA.dom)
-
-		if prfH.arbPC == 0 && prfH.arbAC == 0 {
-			panic("No arbitrary constants in proof that requires one.")
-		}
-	}
-
-	prfA.inner = append(prfA.inner, prfH)
-
-	prfB = prfA
+func (prf *Proof) GetLocalLines() (lns []*Line) {
+	lns = append(lns, prf.lns...)
 
 	return
 }
 
-func GetAdmissibleLines(prf *Proof) (lns []*Line) {
+func (prf *Proof) GetLegalLines() (lns []*Line) {
 	var (
-		wld  World
 		prfO *Proof
 		ln   *Line
 		mop  fmla.Symbol
 	)
 
-	wld = prf.wld
+	lns = append(lns, prf.lns...)
 
-	prfO = prf
+	prfO = prf.outer
 
 	for prfO != nil {
 		for _, ln = range prfO.lns {
-			if ln.wld == wld {
+			if ln.wld == prf.wld {
 				lns = append(lns, ln)
 
 				continue
 			}
 
-			// If the line is a box in an immediately lower world,
-			// it is available.
-			mop = fmla.GetWffMainOperator(ln.wff)
-
-			if ln.wld+1 == wld && mop == fmla.Box {
+			if mop = fmla.GetWffMop(ln.wff); mop == fmla.Box && ln.wld+1 == prf.wld {
 				lns = append(lns, ln)
 			}
+
 		}
 
 		prfO = prfO.outer
 	}
+
+	return
+}
+
+func (prf *Proof) GetInnerProofs(purp NDRule) (prfsI []*Proof) {
+	var (
+		prfI *Proof
+	)
+
+	for _, prfI = range prf.inner {
+		if prfI.purp == purp {
+			prfsI = append(prfsI, prfI)
+		}
+	}
+
+	return
+}
+
+func (prf *Proof) IntroGoalMet() (ln0, lnX *Line, met bool) {
+	var (
+		ln *Line
+	)
+
+	for _, ln = range prf.lns {
+		if met = fmla.IsIdentical(ln.wff, prf.iGoal); met {
+			ln0, lnX = prf.lns[0], ln
+
+			break
+		}
+	}
+
+	return
+}
+
+func (prf *Proof) ExtendSubgoals(goals ...*fmla.WffTree) (ok bool) {
+	var (
+		contains func(g *fmla.WffTree) (has bool)
+		goal     *fmla.WffTree
+	)
+
+	contains = func(g *fmla.WffTree) (has bool) {
+		has = fmla.IsIdentical(g, goal)
+
+		return
+	}
+
+	for _, goal = range goals {
+		if goal == nil || fmla.IsIdentical(prf.iGoal, goal) || slices.ContainsFunc(prf.sGoals, contains) {
+			continue
+		}
+
+		prf.sGoals = append(prf.sGoals, goal)
+	}
+
+	return
+}
+
+func (prf *Proof) MeetsGoal(wff *fmla.WffTree) (met bool) {
+	var (
+		contains func(g *fmla.WffTree) (has bool)
+	)
+
+	contains = func(g *fmla.WffTree) (has bool) {
+		has = fmla.IsIdentical(g, wff)
+
+		return
+	}
+
+	met = fmla.IsIdentical(wff, prf.iGoal) || slices.ContainsFunc(prf.sGoals, contains)
+
+	return
+}
+
+func (prf *Proof) GetAllGoals() (goals []*fmla.WffTree) {
+	goals = []*fmla.WffTree{prf.iGoal}
+	goals = append(goals, prf.sGoals...)
 
 	return
 }
