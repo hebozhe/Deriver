@@ -64,11 +64,15 @@ func updateDomain(dom *domain, wff *fmla.WffTree) (domU *domain) {
 
 func findArbConsts(dom *domain, wff *fmla.WffTree) (apc fmla.Predicate, aac fmla.Argument) {
 	var (
-		pc fmla.Predicate
-		ac fmla.Argument
+		pcs []fmla.Predicate
+		acs []fmla.Argument
+		pc  fmla.Predicate
+		ac  fmla.Argument
 	)
 
-	for _, pc = range fmla.PredConsts {
+	pcs, acs = fmla.GetConstants(wff)
+
+	for _, pc = range pcs {
 		if !dom.pcs[pc] {
 			apc = pc
 
@@ -76,7 +80,7 @@ func findArbConsts(dom *domain, wff *fmla.WffTree) (apc fmla.Predicate, aac fmla
 		}
 	}
 
-	for _, ac = range fmla.ArgConsts {
+	for _, ac = range acs {
 		if !dom.acs[ac] {
 			aac = ac
 
@@ -88,13 +92,53 @@ func findArbConsts(dom *domain, wff *fmla.WffTree) (apc fmla.Predicate, aac fmla
 }
 
 func (prf *Proof) MustSelectArbConsts() (apc fmla.Predicate, aac fmla.Argument) {
-	apc, aac = findArbConsts(prf.dom, prf.iGoal)
+	var (
+		pc fmla.Predicate
+		ac fmla.Argument
+	)
+
+	for _, pc = range fmla.PredConsts {
+		if !prf.dom.pcs[pc] {
+			apc = pc
+
+			break
+		}
+	}
+
+	for _, ac = range fmla.ArgConsts {
+		if !prf.dom.acs[ac] {
+			aac = ac
+
+			break
+		}
+	}
 
 	switch {
 	case apc == 0 && aac == 0:
 		panic("No arbitrary constants available.")
 	case apc != 0 && aac != 0:
 		panic("Both arbitrary constant kinds found.")
+	}
+
+	return
+}
+
+func (prf *Proof) MustSelectHadConsts() (pcs []fmla.Predicate, acs []fmla.Argument) {
+	var (
+		pc fmla.Predicate
+		ac fmla.Argument
+	)
+
+	for _, pc = range fmla.PredConsts {
+		if prf.dom.pcs[pc] {
+			pcs = append(pcs, pc)
+		}
+	}
+
+	for _, ac = range fmla.ArgConsts {
+		if prf.dom.acs[ac] {
+			acs = append(acs, ac)
+		}
 	}
 
 	return

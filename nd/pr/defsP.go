@@ -29,8 +29,8 @@ type LineInfo struct {
 
 type Proof struct {
 	purp   NDRule          // The purpose of the proof, the sought rule to apply.
-	iGoal  *fmla.WffTree   // The main formula to be proven via an introduction rule.
-	sGoals []*fmla.WffTree // Subgoals to accomplish other rules elsewhere.
+	hGoal  *fmla.WffTree   // The head goal, the main formula to be proven via an introduction rule.
+	sGoals []*fmla.WffTree // Subgoals, wffs to prove to apply other rules elsewhere.
 
 	lns   []*Line        // The lines of the proof.
 	wld   world          // The world in which the proof holds.
@@ -63,7 +63,15 @@ func (ln *Line) GetLineInfo() (li *LineInfo) {
 	return
 }
 
-func (prf *Proof) MustAddNewLine(wff *fmla.WffTree, rule NDRule, js ...*Line) (ok bool) {
+func (prf *Proof) GetFirstLineAndPurpose() (ln0 *Line, purp NDRule) {
+	ln0 = prf.lns[0]
+
+	purp = prf.purp
+
+	return
+}
+
+func (prf *Proof) MustAddNewLine(wff *fmla.WffTree, rule NDRule, js ...*Line) (added uint) {
 	var (
 		lenJ       int
 		ln         *Line
@@ -72,7 +80,7 @@ func (prf *Proof) MustAddNewLine(wff *fmla.WffTree, rule NDRule, js ...*Line) (o
 
 	lenJ = len(js)
 
-	if ok = correctJCount(rule, 0, lenJ); !ok {
+	if !correctJCount(rule, 0, lenJ) {
 		panic("Incorrect number of justification lines.")
 	}
 
@@ -102,6 +110,8 @@ func (prf *Proof) MustAddNewLine(wff *fmla.WffTree, rule NDRule, js ...*Line) (o
 	prf.lns = append(prf.lns, ln)
 
 	prf.dom = updateDomain(prf.dom, ln.wff)
+
+	added = 1
 
 	return
 }
@@ -170,7 +180,7 @@ func (prf *Proof) MustAddNewInnerProof(wff, goal *fmla.WffTree, purp NDRule, js 
 
 	prfI = &Proof{
 		purp:   purp,
-		iGoal:  fmla.DeepCopy(goal),
+		hGoal:  fmla.DeepCopy(goal),
 		sGoals: []*fmla.WffTree{},
 
 		lns:   []*Line{ln},
@@ -196,7 +206,7 @@ func NewBaseProof(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *Proof) {
 
 	prf = &Proof{
 		purp:   Solve, // Only the base proof has Solve as a purpose.
-		iGoal:  fmla.DeepCopy(goal),
+		hGoal:  fmla.DeepCopy(goal),
 		sGoals: []*fmla.WffTree{},
 
 		lns:   []*Line{},
@@ -259,13 +269,15 @@ func (prf *Proof) GetLegalLines() (lns []*Line) {
 
 	for prfO != nil {
 		for _, ln = range prfO.lns {
-			if ln.wld == prf.wld {
+			mop = fmla.GetWffMop(ln.wff)
+
+			if ln.wld == prf.wld && mop != fmla.Box {
 				lns = append(lns, ln)
 
 				continue
 			}
 
-			if mop = fmla.GetWffMop(ln.wff); mop == fmla.Box && ln.wld+1 == prf.wld {
+			if ln.wld+1 == prf.wld && mop == fmla.Box {
 				lns = append(lns, ln)
 			}
 
@@ -291,18 +303,34 @@ func (prf *Proof) GetInnerProofs(purp NDRule) (prfsI []*Proof) {
 	return
 }
 
-func (prf *Proof) IntroGoalMet() (ln0, lnX *Line, met bool) {
+func (prf *Proof) HeadGoalMet() (ln0, lnX *Line, met bool) {
 	var (
 		ln *Line
 	)
 
 	for _, ln = range prf.lns {
-		if met = fmla.IsIdentical(ln.wff, prf.iGoal); met {
+		if met = fmla.IsIdentical(ln.wff, prf.hGoal); met {
 			ln0, lnX = prf.lns[0], ln
 
 			break
 		}
 	}
+
+	return
+}
+
+func (prf *Proof) MeetsAnyGoal(wff *fmla.WffTree) (met bool) {
+	var (
+		contains func(g *fmla.WffTree) (has bool)
+	)
+
+	contains = func(g *fmla.WffTree) (has bool) {
+		has = fmla.IsIdentical(g, wff)
+
+		return
+	}
+
+	met = fmla.IsIdentical(wff, prf.hGoal) || slices.ContainsFunc(prf.sGoals, contains)
 
 	return
 }
@@ -320,7 +348,7 @@ func (prf *Proof) ExtendSubgoals(goals ...*fmla.WffTree) (ok bool) {
 	}
 
 	for _, goal = range goals {
-		if goal == nil || fmla.IsIdentical(prf.iGoal, goal) || slices.ContainsFunc(prf.sGoals, contains) {
+		if goal == nil || fmla.IsIdentical(prf.hGoal, goal) || slices.ContainsFunc(prf.sGoals, contains) {
 			continue
 		}
 
@@ -330,25 +358,15 @@ func (prf *Proof) ExtendSubgoals(goals ...*fmla.WffTree) (ok bool) {
 	return
 }
 
-func (prf *Proof) MeetsGoal(wff *fmla.WffTree) (met bool) {
-	var (
-		contains func(g *fmla.WffTree) (has bool)
-	)
-
-	contains = func(g *fmla.WffTree) (has bool) {
-		has = fmla.IsIdentical(g, wff)
-
-		return
-	}
-
-	met = fmla.IsIdentical(wff, prf.iGoal) || slices.ContainsFunc(prf.sGoals, contains)
+func (prf *Proof) GetAllGoals() (goals []*fmla.WffTree) {
+	goals = []*fmla.WffTree{prf.hGoal}
+	goals = append(goals, prf.sGoals...)
 
 	return
 }
 
-func (prf *Proof) GetAllGoals() (goals []*fmla.WffTree) {
-	goals = []*fmla.WffTree{prf.iGoal}
-	goals = append(goals, prf.sGoals...)
+func (prf *Proof) GetArbConsts() (apc fmla.Predicate, aac fmla.Argument) {
+	apc, aac = prf.arbPC, prf.arbAC
 
 	return
 }
