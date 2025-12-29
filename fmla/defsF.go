@@ -375,3 +375,49 @@ func GetWffDepth(wff *WffTree) (depW uint) {
 
 	return
 }
+
+func HasPred(wff *WffTree, pred Predicate) (has bool) {
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	switch wff.kind {
+	case Atomic:
+		has = wff.pred == pred
+	case Unary:
+		has = HasPred(wff.subL, pred)
+	case Binary:
+		has = HasPred(wff.subL, pred) || HasPred(wff.subR, pred)
+	case Quantified:
+		has = HasPred(wff.subL, pred)
+	default:
+		panic("Invalid WffTree")
+	}
+
+	return
+}
+
+func HasArg(wff *WffTree, arg Argument) (has bool) {
+	var args []Argument
+
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	switch wff.kind {
+	case Atomic:
+		args = argStringToArgs(wff.args)
+
+		has = slices.Contains(args, arg)
+	case Unary:
+		has = HasArg(wff.subL, arg)
+	case Binary:
+		has = HasArg(wff.subL, arg) || HasArg(wff.subR, arg)
+	case Quantified:
+		has = HasArg(wff.subL, arg)
+	default:
+		panic("Invalid WffTree")
+	}
+
+	return
+}
