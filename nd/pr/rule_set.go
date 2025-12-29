@@ -39,11 +39,12 @@ const (
 	// N-Order Logic with Identity
 	IdenIntro
 	IdenElim
-	// Kripke Logic
+	// Modal Logic IK
 	BoxIntro
 	BoxElim
-	DiamondIntro
 	DiamondElim
+	// Modal Logic CK
+	DiamondIntro
 	// Modal Logic D
 	IntroD
 	// Modal Logic M
