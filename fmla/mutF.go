@@ -175,34 +175,99 @@ func ReplaceWff(wff, wffA, wffB *WffTree) (wffR *WffTree) {
 	return
 }
 
-func AllSubformulae(wff *WffTree) (swffs []*WffTree) {
+func AllSubformulae(wff *WffTree) (wffs []*WffTree) {
 	var (
 		swffsL, swffsR []*WffTree
 	)
 
 	wff = DeepCopy(wff)
 
-	swffs = append(swffs, wff)
+	wffs = append(wffs, wff)
 
 	switch wff.kind {
 	case Atomic:
 	case Unary:
 		swffsL = AllSubformulae(wff.subL)
 
-		swffs = append(swffs, swffsL...)
+		wffs = append(wffs, swffsL...)
 	case Binary:
 		swffsL = AllSubformulae(wff.subL)
 
 		swffsR = AllSubformulae(wff.subR)
 
-		swffs = append(swffs, swffsL...)
-		swffs = append(swffs, swffsR...)
+		wffs = append(wffs, swffsL...)
+		wffs = append(wffs, swffsR...)
 	case Quantified:
 		swffsL = AllSubformulae(wff.subL)
 
-		swffs = append(swffs, swffsL...)
+		wffs = append(wffs, swffsL...)
 	default:
 		panic("Invalid WffTree")
+	}
+
+	return
+}
+
+func Instantiate(wff *WffTree, pred Predicate, arg Argument) (wffI *WffTree) {
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	if wff.kind != Quantified {
+		panic("WffTree is not a quantified formula.")
+	}
+
+	switch {
+	case wff.pVar != 0 && pred != 0:
+		wffI = ReplacePreds(wff, wff.pVar, pred)
+	case wff.aVar != 0 && arg != 0:
+		wffI = ReplaceArgs(wff, wff.aVar, arg)
+	default:
+		panic("Parameters cannot qualify for instantiation.")
+	}
+
+	return
+}
+
+func GeneralizePred(mop Symbol, wff *WffTree, pred, pVar Predicate) (wffP *WffTree) {
+	var subL *WffTree
+
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	if mop != Exists && mop != ForAll {
+		panic("Invalid symbol for generalization.")
+	}
+
+	if pred != 0 && pVar != 0 {
+		subL = ReplacePreds(wff, pred, pVar)
+
+		wffP = NewCompositeWff(mop, subL, nil, pVar, 0)
+	} else {
+		panic("Parameters cannot qualify for generalization.")
+	}
+
+	return
+}
+
+func GeneralizeArg(mop Symbol, wff *WffTree, arg, aVar Argument) (wffA *WffTree) {
+	var subL *WffTree
+
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	if mop != Exists && mop != ForAll {
+		panic("Invalid symbol for generalization.")
+	}
+
+	if arg != 0 && aVar != 0 {
+		subL = ReplaceArgs(wff, arg, aVar)
+
+		wffA = NewCompositeWff(mop, subL, nil, 0, aVar)
+	} else {
+		panic("Parameters cannot qualify for generalization.")
 	}
 
 	return
