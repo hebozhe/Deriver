@@ -1,6 +1,8 @@
 package fmla
 
-import "slices"
+import (
+	"slices"
+)
 
 func getLastElement[T any](sl []T) (last T, ok bool) {
 	var (
@@ -68,7 +70,7 @@ func giveLegitimateVariable(wffA *WffTree) (wffB *WffTree) {
 	return
 }
 
-func NewCompositeWff(sym Symbol, subL, subR *WffTree, pc Predicate, ac Argument) (wff *WffTree) {
+func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument) (wff *WffTree) {
 	switch {
 	case slices.Contains(UnaryOps, sym):
 		if subL == nil {
@@ -96,11 +98,11 @@ func NewCompositeWff(sym Symbol, subL, subR *WffTree, pc Predicate, ac Argument)
 
 		wff.subL.sup, wff.subR.sup = wff, wff
 	case slices.Contains(Quantifiers, sym):
-		if pc == 0 && ac == 0 {
+		if pv == 0 && av == 0 {
 			panic("No constant over which to quantify.")
 		}
 
-		if pc != 0 && ac != 0 {
+		if pv != 0 && av != 0 {
 			panic("Ambiguous constants over which to quantify.")
 		}
 
@@ -114,15 +116,49 @@ func NewCompositeWff(sym Symbol, subL, subR *WffTree, pc Predicate, ac Argument)
 			subL: DeepCopy(subL),
 		}
 
-		if pc != 0 {
-			wff.pVar = pc
+		if pv != 0 {
+			wff.pVar = pv
 		} else {
-			wff.aVar = ac
+			wff.aVar = av
 		}
 
 		wff = giveLegitimateVariable(wff)
 
 		wff.subL.sup = wff
+	}
+
+	return
+}
+
+func NewUnaryChainWff(syms []Symbol, wff *WffTree) (wffC *WffTree) {
+	var (
+		lenS int
+		subL *WffTree
+	)
+
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	lenS = len(syms)
+
+	switch lenS {
+	case 0:
+		wffC = DeepCopy(wff)
+	case 1:
+		if !slices.Contains(UnaryOps, syms[0]) {
+			panic("Invalid symbol.")
+		}
+
+		wffC = NewCompositeWff(syms[0], wff, nil, 0, 0)
+	default:
+		if !slices.Contains(UnaryOps, syms[0]) {
+			panic("Invalid symbol.")
+		}
+
+		subL = NewUnaryChainWff(syms[1:], wff)
+
+		wffC = NewCompositeWff(syms[0], subL, nil, 0, 0)
 	}
 
 	return
