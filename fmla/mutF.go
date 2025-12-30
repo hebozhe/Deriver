@@ -101,6 +101,104 @@ func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (wffR *WffTree) {
 	return wffR
 }
 
+func singleReplacements(s ArgString, aA Argument, aB Argument) (ss []ArgString) {
+	var (
+		args []Argument
+		arg  Argument
+		dex  int
+	)
+
+	args = argStringToArgs(s)
+
+	for dex, arg = range args {
+		if arg == aA {
+			s = argsToArgString(args[:dex]...) +
+				ArgString(aB) +
+				argsToArgString(args[dex+1:]...)
+
+			ss = append(ss, s)
+		}
+	}
+
+	return
+}
+
+func ReplaceEachArgOnce(wff *WffTree, aA Argument, aB Argument) (wffsR []*WffTree) {
+	var (
+		wffC, sub, wffN *WffTree
+		subLs, subRs    []*WffTree
+		ss              []ArgString
+		s               ArgString
+	)
+
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	if wff.sup == nil {
+		wffC = DeepCopy(wff)
+	} else {
+		wffC = wff
+	}
+
+	switch wffC.kind {
+	case Atomic:
+		ss = singleReplacements(wffC.args, aA, aB)
+
+		for _, s = range ss {
+			wffN = &WffTree{
+				kind: Atomic,
+				mop:  wffC.mop,
+				pVar: wffC.pVar,
+				aVar: wffC.aVar,
+				pred: wffC.pred,
+				args: s,
+				subL: DeepCopy(wffC.subL),
+				subR: DeepCopy(wffC.subR),
+				sup:  wffC.sup,
+			}
+
+			wffsR = append(wffsR, wffN)
+		}
+	case Unary:
+		subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
+
+		for _, sub = range subLs {
+			wffN = NewCompositeWff(wffC.mop, sub, nil, 0, 0)
+
+			wffsR = append(wffsR, wffN)
+		}
+	case Binary:
+		subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
+
+		for _, sub = range subLs {
+			wffN = NewCompositeWff(wffC.mop, sub, wffC.subR, 0, 0)
+
+			wffsR = append(wffsR, wffN)
+		}
+
+		subRs = ReplaceEachArgOnce(wffC.subR, aA, aB)
+
+		for _, sub = range subRs {
+			wffN = NewCompositeWff(wffC.mop, wffC.subL, sub, 0, 0)
+
+			wffsR = append(wffsR, wffN)
+		}
+	case Quantified:
+		subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
+
+		for _, sub = range subLs {
+			wffN = NewCompositeWff(wffC.mop, sub, nil, wffC.pVar, wffC.aVar)
+
+			wffsR = append(wffsR, wffN)
+		}
+	default:
+		panic("Invalid WffTree")
+	}
+
+	return
+}
+
 func IsIdentical(wffA, wffB *WffTree) (is bool) {
 	if is = wffA.kind == wffB.kind; is {
 		switch wffA.kind {
