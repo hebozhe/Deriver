@@ -71,129 +71,104 @@ func (prf *Proof) GetFirstLineAndPurpose() (ln0 *Line, purp NDRule) {
 	return
 }
 
-func (prf *Proof) MustAddNewLine(wff *fmla.WffTree, rule NDRule, js ...*Line) (added uint) {
-	var (
-		lenJ       int
-		ln         *Line
-		j1, j2, j3 *Line
-	)
-
-	lenJ = len(js)
-
-	if !correctJCount(rule, 0, lenJ) {
-		panic("Incorrect number of justification lines.")
-	}
-
-	switch lenJ {
-	case 0:
-		j1, j2, j3 = nil, nil, nil
-	case 1:
-		j1, j2, j3 = js[0], nil, nil
-	case 2:
-		j1, j2, j3 = js[0], js[1], nil
-	case 3:
-		j1, j2, j3 = js[0], js[1], js[2]
-	default:
-		panic("Incorrect number of justification lines.")
-	}
-
-	ln = &Line{
-		wff: fmla.DeepCopy(wff),
-		wld: prf.wld,
-
-		rule: rule,
-		j1:   j1,
-		j2:   j2,
-		j3:   j3,
-	}
-
-	prf.lns = append(prf.lns, ln)
-
-	prf.dom = updateDomain(prf.dom, ln.wff)
-
-	added = 1
+func (prf *Proof) GetAllGoals() (goals []*fmla.WffTree) {
+	goals = []*fmla.WffTree{prf.hGoal}
+	goals = append(goals, prf.sGoals...)
 
 	return
 }
 
-func (prf *Proof) MustAddNewInnerProof(wff, goal *fmla.WffTree, purp NDRule, js ...*Line) (ok bool) {
+func (prf *Proof) GetLocalLines() (lns []*Line) {
+	lns = append(lns, prf.lns...)
+
+	return
+}
+
+func (prf *Proof) GetLegalLines() (lns []*Line) {
 	var (
-		lenJ   int
-		ln     *Line
-		j1, j2 *Line
-		prfI   *Proof
-		apc    fmla.Predicate
-		aac    fmla.Argument
+		prfO *Proof
+		ln   *Line
+		mop  fmla.Symbol
 	)
 
-	lenJ = len(js)
+	lns = append(lns, prf.lns...)
 
-	if ok = correctJCount(Assumption, purp, lenJ); !ok {
-		panic("Incorrect number of justification lines.")
-	}
+	prfO = prf.outer
 
-	switch lenJ {
-	case 0:
-		j1, j2 = nil, nil
-	case 1:
-		j1, j2 = js[0], nil
-	case 2:
-		j1, j2 = js[0], js[1]
-	default:
-		panic("Incorrect number of justification lines.")
-	}
+	for prfO != nil {
+		for _, ln = range prfO.lns {
+			mop = fmla.GetWffMop(ln.wff)
 
-	ln = &Line{
-		wff: fmla.DeepCopy(wff),
-		wld: prf.wld,
+			if ln.wld == prf.wld && mop != fmla.Box {
+				lns = append(lns, ln)
 
-		rule: Assumption,
-		j1:   j1,
-		j2:   j2,
-		j3:   nil,
-	}
+				continue
+			}
 
-	switch purp {
-	case ForAllIntro:
-		apc, aac = findArbConsts(prf.dom, goal)
+			if ln.wld+1 == prf.wld && mop == fmla.Box {
+				lns = append(lns, ln)
+			}
 
-		if ok = apc != 0 || aac != 0; !ok {
-			panic("No arbitrary predicate or argument constants found.")
 		}
 
-		if ok = !(apc != 0 && aac != 0); !ok {
-			panic("Both arbitrary predicate and argument constants found.")
-		}
-	case ExistsElim:
-		apc, aac = findArbConsts(prf.dom, wff)
-
-		if apc == 0 && aac == 0 {
-			panic("No arbitrary predicate or argument constants found.")
-		}
-
-		if !(apc == 0 || aac == 0) {
-			panic("Both arbitrary predicate and argument constants found.")
-		}
-	case BoxIntro, DiamondElim:
-		ln.wld += 1
+		prfO = prfO.outer
 	}
 
-	prfI = &Proof{
-		purp:   purp,
-		hGoal:  fmla.DeepCopy(goal),
-		sGoals: []*fmla.WffTree{},
+	return
+}
 
-		lns:   []*Line{ln},
-		wld:   ln.wld,
-		arbPC: apc,
-		arbAC: aac,
-		dom:   updateDomain(updateDomain(prf.dom, wff), goal),
+func (prf *Proof) LineIsRedundant(ln *Line) (is bool) {
+	var (
+		lns []*Line
+	)
 
-		inner: []*Proof{},
-		outer: prf,
+	lns = prf.GetLegalLines()
+
+	is = slices.ContainsFunc(lns, func(l *Line) (has bool) {
+		has = fmla.IsIdentical(l.wff, ln.wff) &&
+			l.wld == ln.wld &&
+			l.rule == ln.rule &&
+			l.j1 == ln.j1 &&
+			l.j2 == ln.j2 &&
+			l.j3 == ln.j3
+
+		return
+	})
+
+	return
+}
+
+func (prf *Proof) InnerProofIsRedundant(prfI *Proof) (is bool) {
+	is = slices.ContainsFunc(prf.inner, func(p *Proof) (has bool) {
+		has = p.purp == prfI.purp &&
+			fmla.IsIdentical(p.lns[0].wff, prfI.lns[0].wff) &&
+			fmla.IsIdentical(p.hGoal, prfI.hGoal) &&
+			p.wld == prfI.wld &&
+			p.arbPC == prfI.arbPC &&
+			p.arbAC == prfI.arbAC
+
+		return
+	})
+
+	return
+}
+
+func (prf *Proof) GetArbConsts() (apc fmla.Predicate, aac fmla.Argument) {
+	apc, aac = prf.arbPC, prf.arbAC
+
+	return
+}
+
+func (prf *Proof) GetInnerProofs(purp NDRule) (prfsI []*Proof) {
+	var (
+		prfI *Proof
+	)
+
+	for _, prfI = range prf.inner {
+		if prfI.purp == purp {
+			prfsI = append(prfsI, prfI)
+		}
 	}
-
-	prf.inner = append(prf.inner, prfI)
 
 	return
 }
@@ -244,59 +219,8 @@ func NewBaseProof(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *Proof) {
 			j3:   nil,
 		}
 
-		prf.lns = append(prf.lns, ln)
-	}
-
-	return
-}
-
-func (prf *Proof) GetLocalLines() (lns []*Line) {
-	lns = append(lns, prf.lns...)
-
-	return
-}
-
-func (prf *Proof) GetLegalLines() (lns []*Line) {
-	var (
-		prfO *Proof
-		ln   *Line
-		mop  fmla.Symbol
-	)
-
-	lns = append(lns, prf.lns...)
-
-	prfO = prf.outer
-
-	for prfO != nil {
-		for _, ln = range prfO.lns {
-			mop = fmla.GetWffMop(ln.wff)
-
-			if ln.wld == prf.wld && mop != fmla.Box {
-				lns = append(lns, ln)
-
-				continue
-			}
-
-			if ln.wld+1 == prf.wld && mop == fmla.Box {
-				lns = append(lns, ln)
-			}
-
-		}
-
-		prfO = prfO.outer
-	}
-
-	return
-}
-
-func (prf *Proof) GetInnerProofs(purp NDRule) (prfsI []*Proof) {
-	var (
-		prfI *Proof
-	)
-
-	for _, prfI = range prf.inner {
-		if prfI.purp == purp {
-			prfsI = append(prfsI, prfI)
+		if !prf.LineIsRedundant(ln) {
+			prf.lns = append(prf.lns, ln)
 		}
 	}
 
@@ -335,38 +259,8 @@ func (prf *Proof) MeetsAnyGoal(wff *fmla.WffTree) (met bool) {
 	return
 }
 
-func (prf *Proof) ExtendSubgoals(goals ...*fmla.WffTree) (ok bool) {
-	var (
-		contains func(g *fmla.WffTree) (has bool)
-		goal     *fmla.WffTree
-	)
-
-	contains = func(g *fmla.WffTree) (has bool) {
-		has = fmla.IsIdentical(g, goal)
-
-		return
-	}
-
-	for _, goal = range goals {
-		if goal == nil || fmla.IsIdentical(prf.hGoal, goal) || slices.ContainsFunc(prf.sGoals, contains) {
-			continue
-		}
-
-		prf.sGoals = append(prf.sGoals, goal)
-	}
-
-	return
-}
-
-func (prf *Proof) GetAllGoals() (goals []*fmla.WffTree) {
-	goals = []*fmla.WffTree{prf.hGoal}
-	goals = append(goals, prf.sGoals...)
-
-	return
-}
-
-func (prf *Proof) GetArbConsts() (apc fmla.Predicate, aac fmla.Argument) {
-	apc, aac = prf.arbPC, prf.arbAC
+func (prf *Proof) LineWorldIsProofWorld(ln *Line) (is bool) {
+	is = ln.wld == prf.wld
 
 	return
 }
