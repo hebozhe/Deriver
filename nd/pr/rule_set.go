@@ -11,12 +11,12 @@ const (
 	Assumption NDRule = iota + 1
 	Premise
 	Theorem
-	// Vacuous
+	// Vacuous Propositional Logic (VPL)
 	TopIntro
-	// Implicational
+	// Implicational Propositional Logic (TPL)
 	ToIntro
 	ToElim
-	// Positive
+	// Positive Propositional Logic (PPL)
 	WedgeIntro
 	WedgeElim
 	VeeIntro
@@ -24,41 +24,41 @@ const (
 	IffIntro
 	IffElim
 	Reit
-	// Minimal
+	// Minimal Propositional Logic (MPL)
 	BotIntro
 	NegIntro
-	// Intuitionistic
+	// Intuitionistic Propositional Logic (IPL)
 	BotElim
-	// Classical
+	// Classical Propositional Logic (CPL)
 	NegElim
-	// N-Order Logic
+	// N-Order Quantification Logic (QL)
 	ForAllIntro
 	ForAllElim
 	ExistsIntro
 	ExistsElim
-	// N-Order Logic with Identity
-	IdenIntro
-	IdenElim
-	// Modal Logic IK
+	// N-Order Logic with Identity (QLi)
+	EqualsIntro
+	EqualsElim
+	// Intuitionistic Modal Logic K (+IK)
 	BoxIntro
 	BoxElim
 	DiamondElim
-	// Modal Logic CK
+	// Classical Modal Logic K (+CK)
 	DiamondIntro
-	// Modal Logic D
+	// Modal Logic D (K+D)
 	IntroD
-	// Modal Logic M
+	// Modal Logic M (K+M)
 	IntroM
 	ElimM
-	// Modal Logic 4
+	// Modal Logic 4 (K+4)
 	Intro4
 	Elim4
-	// Modal Logic B
+	// Modal Logic B (K+B)
 	IntroB
 	ElimB
 )
 
-var purposes = []NDRule{
+var purposes = [6]NDRule{
 	ToIntro, NegIntro,
 	ForAllIntro, ExistsElim,
 	BoxIntro, DiamondElim,
@@ -94,8 +94,8 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	ForAllElim:   1,
 	ExistsIntro:  1,
 	ExistsElim:   3,
-	IdenIntro:    0,
-	IdenElim:     2,
+	EqualsIntro:  0,
+	EqualsElim:   2,
 	BoxIntro:     2,
 	BoxElim:      2,
 	DiamondIntro: 1,

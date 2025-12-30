@@ -13,7 +13,7 @@ var tryTopIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 	wff = fmla.NewAtomicWff(fmla.Top)
 
-	added += prf.MustAddNewLine(wff, pr.TopIntro)
+	added += prf.AddUniqueLine(wff, pr.TopIntro)
 
 	return
 }
@@ -39,7 +39,7 @@ var tryToIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		wffD = fmla.NewCompositeWff(fmla.To, j1i.Wff, j2i.Wff, 0, 0)
 
-		added += prf.MustAddNewLine(wffD, pr.ToIntro, j1, j2)
+		added += prf.AddUniqueLine(wffD, pr.ToIntro, j1, j2)
 	}
 
 	return
@@ -85,7 +85,7 @@ var tryWedgeIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		switch {
 		case got1 && got2:
-			added += prf.MustAddNewLine(wffD, pr.WedgeIntro, j1, j2)
+			added += prf.AddUniqueLine(wffD, pr.WedgeIntro, j1, j2)
 		case got1:
 			_ = prf.ExtendSubgoals(wffDR)
 		case got2:
@@ -121,7 +121,7 @@ var tryVeeIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		for _, j1 = range lns {
 			if j1i = j1.GetLineInfo(); fmla.IsIdentical(j1i.Wff, wffDL) || fmla.IsIdentical(j1i.Wff, wffDR) {
-				added += prf.MustAddNewLine(wffD, pr.VeeIntro, j1)
+				added += prf.AddUniqueLine(wffD, pr.VeeIntro, j1)
 			}
 		}
 	}
@@ -175,7 +175,7 @@ var tryIffIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		switch {
 		case got1 && got2:
-			added += prf.MustAddNewLine(wffD, pr.IffIntro, j1, j2)
+			added += prf.AddUniqueLine(wffD, pr.IffIntro, j1, j2)
 		case got1:
 			wffD = fmla.NewCompositeWff(fmla.To, wffDR, wffDL, 0, 0)
 
@@ -217,11 +217,15 @@ var tryReit ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	}
 
 	for _, j1 = range legs {
+		if !prf.LineWorldIsProofWorld(j1) {
+			continue
+		}
+
 		if j1i = j1.GetLineInfo(); slices.ContainsFunc(locs, contains) {
 			continue
 		}
 
-		added += prf.MustAddNewLine(j1i.Wff, pr.Reit, j1)
+		added += prf.AddUniqueLine(j1i.Wff, pr.Reit, j1)
 	}
 
 	return
@@ -248,7 +252,7 @@ TRYBOTINTRO_OUTER:
 			if j1i.Mop == fmla.Neg && fmla.IsIdentical(j1i.SubL, j2i.Wff) {
 				wffD = fmla.NewAtomicWff(fmla.Bot)
 
-				added += prf.MustAddNewLine(wffD, pr.BotIntro, j1, j2)
+				added += prf.AddUniqueLine(wffD, pr.BotIntro, j1, j2)
 
 				break TRYBOTINTRO_OUTER
 			}
@@ -256,7 +260,7 @@ TRYBOTINTRO_OUTER:
 			if j2i.Mop == fmla.Neg && fmla.IsIdentical(j2i.SubL, j1i.Wff) {
 				wffD = fmla.NewAtomicWff(fmla.Bot)
 
-				added += prf.MustAddNewLine(wffD, pr.BotIntro, j2, j1)
+				added += prf.AddUniqueLine(wffD, pr.BotIntro, j2, j1)
 
 				break TRYBOTINTRO_OUTER
 			}
@@ -297,7 +301,7 @@ var tryNegIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		wffD = fmla.NewCompositeWff(fmla.Neg, j1i.Wff, nil, 0, 0)
 
-		added += prf.MustAddNewLine(wffD, pr.NegIntro, j1, j2)
+		added += prf.AddUniqueLine(wffD, pr.NegIntro, j1, j2)
 	}
 
 	return
@@ -332,7 +336,7 @@ var tryForAllIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 				wffD = fmla.GeneralizePred(fmla.ForAll, j2i.Wff, apc, pv)
 
 				if prf.MeetsAnyGoal(wffD) {
-					added += prf.MustAddNewLine(wffD, pr.ForAllIntro, j1, j2)
+					added += prf.AddUniqueLine(wffD, pr.ForAllIntro, j1, j2)
 				}
 			}
 
@@ -341,7 +345,7 @@ var tryForAllIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 				wffD = fmla.GeneralizeArg(fmla.ForAll, j2i.Wff, aac, av)
 
 				if prf.MeetsAnyGoal(wffD) {
-					added += prf.MustAddNewLine(wffD, pr.ForAllIntro, j1, j2)
+					added += prf.AddUniqueLine(wffD, pr.ForAllIntro, j1, j2)
 				}
 			}
 		}
@@ -386,7 +390,7 @@ TRYEXISTSINTRO_OUTER:
 						continue
 					}
 
-					added += prf.MustAddNewLine(wffD, pr.ExistsIntro, j1)
+					added += prf.AddUniqueLine(wffD, pr.ExistsIntro, j1)
 
 					continue TRYEXISTSINTRO_OUTER
 				}
@@ -401,12 +405,30 @@ TRYEXISTSINTRO_OUTER:
 						continue
 					}
 
-					added += prf.MustAddNewLine(wffD, pr.ExistsIntro, j1)
+					added += prf.AddUniqueLine(wffD, pr.ExistsIntro, j1)
 
 					continue TRYEXISTSINTRO_OUTER
 				}
 			}
 		}
+	}
+
+	return
+}
+
+var tryEqualsIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
+	var (
+		acs  []fmla.Argument
+		ac   fmla.Argument
+		wffD *fmla.WffTree
+	)
+
+	_, acs = prf.MustSelectHadConsts()
+
+	for _, ac = range acs {
+		wffD = fmla.NewAtomicWff(fmla.Equals, ac, ac)
+
+		added += prf.AddUniqueLine(wffD, pr.EqualsIntro)
 	}
 
 	return
@@ -433,7 +455,7 @@ var tryBoxIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		wffD = fmla.NewCompositeWff(fmla.Box, j2i.Wff, nil, 0, 0)
 
-		added += prf.MustAddNewLine(wffD, pr.BoxIntro, j1, j2)
+		added += prf.AddUniqueLine(wffD, pr.BoxIntro, j1, j2)
 	}
 
 	return
@@ -463,7 +485,7 @@ var tryDiamondIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		wffD = fmla.NewUnaryChainWff([]fmla.Symbol{fmla.Diamond, fmla.Neg}, wffDL)
 
-		added += prf.MustAddNewLine(wffD, pr.DiamondIntro, j1)
+		added += prf.AddUniqueLine(wffD, pr.DiamondIntro, j1)
 	}
 
 	return
@@ -487,7 +509,7 @@ var tryIntroD ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		wffD, _ = fmla.GetWffSubformulae(j1i.SubL)
 		wffD = fmla.NewCompositeWff(fmla.Diamond, wffD, nil, 0, 0)
 
-		added += prf.MustAddNewLine(wffD, pr.IntroD, j1)
+		added += prf.AddUniqueLine(wffD, pr.IntroD, j1)
 	}
 
 	return
@@ -509,7 +531,7 @@ var tryIntroM ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		wffD = fmla.NewCompositeWff(fmla.Diamond, j1i.Wff, nil, 0, 0)
 
 		if prf.MeetsAnyGoal(wffD) {
-			added += prf.MustAddNewLine(wffD, pr.IntroM, j1)
+			added += prf.AddUniqueLine(wffD, pr.IntroM, j1)
 		}
 	}
 
@@ -534,7 +556,7 @@ var tryIntro4 ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		wffD = fmla.NewCompositeWff(fmla.Box, j1i.Wff, nil, 0, 0)
 
 		if prf.MeetsAnyGoal(wffD) {
-			added += prf.MustAddNewLine(wffD, pr.Intro4, j1)
+			added += prf.AddUniqueLine(wffD, pr.Intro4, j1)
 		}
 	}
 
@@ -557,7 +579,7 @@ var tryIntroB ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		wffD = fmla.NewUnaryChainWff([]fmla.Symbol{fmla.Box, fmla.Diamond}, j1i.Wff)
 
 		if prf.MeetsAnyGoal(wffD) {
-			added += prf.MustAddNewLine(wffD, pr.IntroB, j1)
+			added += prf.AddUniqueLine(wffD, pr.IntroB, j1)
 		}
 	}
 

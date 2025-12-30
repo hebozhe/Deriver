@@ -32,7 +32,7 @@ var tryToElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		switch got2 {
 		case true:
-			added += prf.MustAddNewLine(j1i.SubR, pr.ToElim, j1, j2)
+			added += prf.AddUniqueLine(j1i.SubR, pr.ToElim, j1, j2)
 		case false:
 			_ = prf.ExtendSubgoals(j1i.SubL)
 		}
@@ -55,8 +55,8 @@ var tryWedgeElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 			continue
 		}
 
-		added += prf.MustAddNewLine(j1i.SubL, pr.WedgeElim, j1)
-		added += prf.MustAddNewLine(j1i.SubR, pr.WedgeElim, j1)
+		added += prf.AddUniqueLine(j1i.SubL, pr.WedgeElim, j1)
+		added += prf.AddUniqueLine(j1i.SubR, pr.WedgeElim, j1)
 	}
 
 	return
@@ -96,7 +96,7 @@ var tryVeeElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		switch {
 		case got2 && got3 && fmla.IsIdentical(j2i.SubR, j3i.SubR):
-			added += prf.MustAddNewLine(j2i.SubR, pr.VeeElim, j1, j2, j3)
+			added += prf.AddUniqueLine(j2i.SubR, pr.VeeElim, j1, j2, j3)
 		case got2 && got3:
 			wffD = fmla.NewCompositeWff(fmla.Vee, j2i.SubR, j3i.SubR, 0, 0)
 			wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, wffD, 0, 0)
@@ -174,7 +174,7 @@ var tryBotElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		goals = prf.GetAllGoals()
 
 		for _, wffD = range goals {
-			added += prf.MustAddNewLine(wffD, pr.BotElim, j1)
+			added += prf.AddUniqueLine(wffD, pr.BotElim, j1)
 		}
 
 		break
@@ -205,7 +205,7 @@ var tryNegElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		wffD, _ = fmla.GetWffSubformulae(j1i.SubL)
 
-		added += prf.MustAddNewLine(wffD, pr.NegElim, j1)
+		added += prf.AddUniqueLine(wffD, pr.NegElim, j1)
 	}
 
 	return
@@ -237,13 +237,13 @@ var tryForAllElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 			for _, pc = range pcs {
 				wffD = fmla.ReplacePreds(j1i.SubL, j1i.PVar, pc)
 
-				added += prf.MustAddNewLine(wffD, pr.ForAllElim, j1)
+				added += prf.AddUniqueLine(wffD, pr.ForAllElim, j1)
 			}
 		case j1i.AVar != 0:
 			for _, ac = range acs {
 				wffD = fmla.ReplaceArgs(j1i.SubL, j1i.AVar, ac)
 
-				added += prf.MustAddNewLine(wffD, pr.ForAllElim, j1)
+				added += prf.AddUniqueLine(wffD, pr.ForAllElim, j1)
 			}
 		}
 
@@ -256,23 +256,84 @@ var tryExistsElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
 		prfsI      []*pr.Proof
 		prfI       *pr.Proof
+		lnsI       []*pr.Line
 		j1, j2, j3 *pr.Line
-		met        bool
 		j2i, j3i   *pr.LineInfo
+		apc        fmla.Predicate
+		aac        fmla.Argument
 	)
 
 	prfsI = prf.GetInnerProofs(pr.ExistsElim)
 
 	for _, prfI = range prfsI {
-		if j2, j3, met = prfI.HeadGoalMet(); !met {
-			continue
-		}
+		apc, aac = prfI.GetArbConsts()
 
-		j2i, j3i = j2.GetLineInfo(), j3.GetLineInfo()
+		lnsI = prfI.GetLocalLines()
+
+		j2 = lnsI[0]
+
+		j2i = j2.GetLineInfo()
 
 		j1 = j2i.J1
 
-		added += prf.MustAddNewLine(j3i.Wff, pr.ExistsElim, j1, j2, j3)
+		for _, j3 = range lnsI[1:] {
+			if j3i = j3.GetLineInfo(); fmla.HasPred(j3i.Wff, apc) || fmla.HasArg(j3i.Wff, aac) {
+				continue
+			}
+
+			added += prf.AddUniqueLine(j3i.Wff, pr.ExistsElim, j1, j2, j3)
+		}
+	}
+
+	return
+}
+
+var tryEqualsElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
+	var (
+		lns      []*pr.Line
+		j1, j2   *pr.Line
+		j1i, j2i *pr.LineInfo
+		pred     fmla.Predicate
+		args     []fmla.Argument
+		wffsD    []*fmla.WffTree
+		wffD     *fmla.WffTree
+	)
+
+	lns = prf.GetLegalLines()
+
+	for _, j1 = range lns {
+		if j1i = j1.GetLineInfo(); j1i.Mop != fmla.NoSymbol {
+			continue
+		}
+
+		if pred, args, _ = fmla.GetWffPredAndArgs(j1i.Wff); pred != fmla.Equals {
+			continue
+		}
+
+		if args[0] == args[1] {
+			continue
+		}
+
+		for _, j2 = range lns {
+			j2i = j2.GetLineInfo()
+
+			if fmla.HasArg(j2i.Wff, args[0]) {
+				wffsD = fmla.ReplaceEachArgOnce(j2i.Wff, args[0], args[1])
+
+				for _, wffD = range wffsD {
+					added += prf.AddUniqueLine(wffD, pr.EqualsElim, j1, j2)
+				}
+
+			}
+
+			if fmla.HasArg(j2i.Wff, args[1]) {
+				wffsD = fmla.ReplaceEachArgOnce(j2i.Wff, args[1], args[0])
+
+				for _, wffD = range wffsD {
+					added += prf.AddUniqueLine(wffD, pr.EqualsElim, j1, j2)
+				}
+			}
+		}
 	}
 
 	return
@@ -294,7 +355,7 @@ var tryBoxElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 				continue
 			}
 
-			added += prf.MustAddNewLine(j1i.SubL, pr.BotElim, j1, j2)
+			added += prf.AddUniqueLine(j1i.SubL, pr.BoxElim, j1, j2)
 		}
 	}
 
@@ -305,23 +366,32 @@ var tryDiamondElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
 		prfsI      []*pr.Proof
 		prfI       *pr.Proof
+		lnsI       []*pr.Line
 		j1, j2, j3 *pr.Line
 		j2i, j3i   *pr.LineInfo
-		met        bool
 	)
 
 	prfsI = prf.GetInnerProofs(pr.DiamondElim)
 
 	for _, prfI = range prfsI {
-		if j2, j3, met = prfI.HeadGoalMet(); !met {
-			continue
-		}
+		lnsI = prfI.GetLocalLines()
 
-		j2i, j3i = j2.GetLineInfo(), j3.GetLineInfo()
+		j2 = lnsI[0]
+
+		j2i = j2.GetLineInfo()
 
 		j1 = j2i.J1
 
-		added += prf.MustAddNewLine(j3i.Wff, pr.DiamondElim, j1, j2, j3)
+		for _, j3 = range lnsI[1:] {
+			// Is there even a risk of this?
+			if !prfI.LineWorldIsProofWorld(j3) {
+				continue
+			}
+
+			j3i = j3.GetLineInfo()
+
+			added += prf.AddUniqueLine(j3i.Wff, pr.DiamondElim, j1, j2, j3)
+		}
 	}
 
 	return
@@ -341,7 +411,7 @@ var tryElimM ndRuleFunc = func(prf *pr.Proof) (added uint) {
 			continue
 		}
 
-		added += prf.MustAddNewLine(j1i.SubL, pr.ElimM, j1)
+		added += prf.AddUniqueLine(j1i.SubL, pr.ElimM, j1)
 	}
 
 	return
@@ -366,7 +436,7 @@ var tryElim4 ndRuleFunc = func(prf *pr.Proof) (added uint) {
 			continue
 		}
 
-		added += prf.MustAddNewLine(j1i.SubL, pr.Elim4, j1)
+		added += prf.AddUniqueLine(j1i.SubL, pr.Elim4, j1)
 	}
 
 	return
@@ -394,7 +464,7 @@ var tryElimB ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		wffD, _ = fmla.GetWffSubformulae(j1i.SubL)
 
-		added += prf.MustAddNewLine(wffD, pr.ElimB, j1)
+		added += prf.AddUniqueLine(wffD, pr.ElimB, j1)
 	}
 
 	return
