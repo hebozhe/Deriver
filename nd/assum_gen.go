@@ -48,6 +48,8 @@ func seedInnerIntroProofs(prf *pr.Proof) (added uint) {
 		lenG                            int
 		goal, subL, subR, ipWff, ipGoal *fmla.WffTree
 		mop                             fmla.Symbol
+		pcs                             []fmla.Predicate
+		acs                             []fmla.Argument
 		pv, pc, apc                     fmla.Predicate
 		av, ac, aac                     fmla.Argument
 	)
@@ -119,16 +121,17 @@ func seedInnerIntroProofs(prf *pr.Proof) (added uint) {
 
 			goals = append(goals, ipWff)
 		case fmla.Exists:
-			// NOTE: This seems like overkill, so revisit this later.
+			pcs, acs = prf.SelectNonArbConsts()
+
 			switch {
 			case pv != 0:
-				for _, pc = range fmla.PredConsts {
+				for _, pc = range pcs {
 					ipWff = fmla.Instantiate(goal, pc, 0)
 
 					goals = append(goals, ipWff)
 				}
 			case av != 0:
-				for _, ac = range fmla.ArgConsts {
+				for _, ac = range acs {
 					ipWff = fmla.Instantiate(goal, 0, ac)
 
 					goals = append(goals, ipWff)
