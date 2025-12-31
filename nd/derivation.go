@@ -25,9 +25,9 @@ func pumpIntroductions(prf *pr.Proof, iFuncs []ndRuleFunc) (added uint, met bool
 
 			added += addedI
 		}
-	}
 
-	_, _, met = prf.HeadGoalMet()
+		_, _, met = prf.HeadGoalMet()
+	}
 
 	return
 }
@@ -52,9 +52,9 @@ func pumpEliminations(prf *pr.Proof, eFuncs []ndRuleFunc) (added uint, met bool)
 
 			added += addedI
 		}
-	}
 
-	_, _, met = prf.HeadGoalMet()
+		_, _, met = prf.HeadGoalMet()
+	}
 
 	return
 }
