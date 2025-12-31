@@ -64,6 +64,7 @@ type WffTree struct {
 	subL *WffTree  // If Kind is Unary, this is the sole operand; if Kind is Binary, this is the left operand.
 	subR *WffTree  // If Kind is Binary, this is the right operand.
 	sup  *WffTree  // If SubL is non-nil, this is the super-formula.
+	h    uint64    // The hash value of the WffTree.
 }
 
 func argStringToArgs(s ArgString) (args []Argument) {

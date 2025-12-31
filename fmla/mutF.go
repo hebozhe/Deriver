@@ -12,6 +12,7 @@ func DeepCopy(wff *WffTree) (wffC *WffTree) {
 			subL: DeepCopy(wff.subL),
 			subR: DeepCopy(wff.subR),
 			sup:  nil, // The parent is set below.
+			h:    wff.h,
 		}
 
 		if wffC.subL != nil {
@@ -21,6 +22,7 @@ func DeepCopy(wff *WffTree) (wffC *WffTree) {
 		if wffC.subR != nil {
 			wffC.subR.sup = wffC
 		}
+
 	}
 
 	return
@@ -53,6 +55,8 @@ func ReplacePreds(wff *WffTree, pA Predicate, pB Predicate) (wffR *WffTree) {
 	default:
 		panic("Invalid WffTree")
 	}
+
+	wffR.h = hashWff(wffR)
 
 	return
 }
@@ -97,6 +101,8 @@ func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (wffR *WffTree) {
 	default:
 		panic("Invalid WffTree")
 	}
+
+	wffR.h = hashWff(wffR)
 
 	return wffR
 }
@@ -158,6 +164,8 @@ func ReplaceEachArgOnce(wff *WffTree, aA Argument, aB Argument) (wffsR []*WffTre
 				sup:  wffC.sup,
 			}
 
+			wffN.h = hashWff(wffN)
+
 			wffsR = append(wffsR, wffN)
 		}
 	case Unary:
@@ -200,26 +208,7 @@ func ReplaceEachArgOnce(wff *WffTree, aA Argument, aB Argument) (wffsR []*WffTre
 }
 
 func IsIdentical(wffA, wffB *WffTree) (is bool) {
-	if is = wffA.kind == wffB.kind; is {
-		switch wffA.kind {
-		case Atomic:
-			is = wffA.pred == wffB.pred &&
-				wffA.args == wffB.args
-		case Unary:
-			is = wffA.mop == wffB.mop &&
-				IsIdentical(wffA.subL, wffB.subL)
-		case Binary:
-			is = wffA.mop == wffB.mop &&
-				IsIdentical(wffA.subL, wffB.subL) &&
-				IsIdentical(wffA.subR, wffB.subR)
-		case Quantified:
-			is = wffA.pVar == wffB.pVar &&
-				wffA.aVar == wffB.aVar &&
-				IsIdentical(wffA.subL, wffB.subL)
-		default:
-			panic("Invalid WffTree")
-		}
-	}
+	is = wffA.h == wffB.h
 
 	return
 }
@@ -269,6 +258,8 @@ func ReplaceWff(wff, wffA, wffB *WffTree) (wffR *WffTree) {
 			panic("Invalid WffTree")
 		}
 	}
+
+	wffR.h = hashWff(wffR)
 
 	return
 }

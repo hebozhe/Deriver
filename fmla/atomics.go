@@ -16,6 +16,8 @@ func NewAtomicWff(pc Predicate, acs ...Argument) (wff *WffTree) {
 		args: argsToArgString(acs...),
 	}
 
+	wff.h = hashWff(wff)
+
 	return
 }
 

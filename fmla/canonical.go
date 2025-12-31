@@ -219,6 +219,8 @@ func MakeCanonical(wff *WffTree) (cwff *WffTree) {
 
 	applyMaps(cwff)
 
+	cwff.h = hashWff(cwff)
+
 	return
 }
 

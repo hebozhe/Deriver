@@ -127,6 +127,8 @@ func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument)
 		wff.subL.sup = wff
 	}
 
+	wff.h = hashWff(wff)
+
 	return
 }
 
