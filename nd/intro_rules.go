@@ -8,12 +8,12 @@ import (
 
 var tryTopIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
-		wff *fmla.WffTree
+		wffD *fmla.WffTree
 	)
 
-	wff = fmla.NewAtomicWff(fmla.Top)
+	wffD = fmla.NewAtomicWff(fmla.Top)
 
-	added += prf.AddUniqueLine(wff, pr.TopIntro)
+	added += prf.AddUniqueLine(wffD, pr.TopIntro)
 
 	return
 }
@@ -53,7 +53,6 @@ var tryWedgeIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		wffD, wffDL, wffDR *fmla.WffTree
 		j1, j2             *pr.Line
 		j1i, j2i           *pr.LineInfo
-		got1, got2         bool
 	)
 
 	goals = prf.GetAllGoals()
@@ -68,30 +67,16 @@ var tryWedgeIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		wffDL, wffDR = fmla.GetWffSubformulae(wffD)
 
 		for _, j1 = range lns {
-			if j1i = j1.GetLineInfo(); fmla.IsIdentical(j1i.Wff, wffDL) {
-				got1 = true
-
-				break
+			if j1i = j1.GetLineInfo(); !fmla.IsIdentical(j1i.Wff, wffDL) {
+				continue
 			}
-		}
+			for _, j2 = range lns {
+				if j2i = j2.GetLineInfo(); !fmla.IsIdentical(j2i.Wff, wffDR) {
+					continue
+				}
 
-		for _, j2 = range lns {
-			if j2i = j2.GetLineInfo(); fmla.IsIdentical(j2i.Wff, wffDR) {
-				got2 = true
-
-				break
+				added += prf.AddUniqueLine(wffD, pr.WedgeIntro, j1, j2)
 			}
-		}
-
-		switch {
-		case got1 && got2:
-			added += prf.AddUniqueLine(wffD, pr.WedgeIntro, j1, j2)
-		case got1:
-			_ = prf.ExtendSubgoals(wffDR)
-		case got2:
-			_ = prf.ExtendSubgoals(wffDL)
-		default:
-			_ = prf.ExtendSubgoals(wffDL, wffDR)
 		}
 	}
 
@@ -137,7 +122,6 @@ var tryIffIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		wffD, wffDL, wffDR *fmla.WffTree
 		j1, j2             *pr.Line
 		j1i, j2i           *pr.LineInfo
-		got1, got2         bool
 	)
 
 	goals = prf.GetAllGoals()
@@ -151,47 +135,22 @@ var tryIffIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		wffDL, wffDR = fmla.GetWffSubformulae(wffD)
 
-		got1, got2 = false, false
-
 		for _, j1 = range lns {
-			if j1i = j1.GetLineInfo(); j1i.Mop == fmla.To &&
+			if j1i = j1.GetLineInfo(); !(j1i.Mop == fmla.To &&
 				fmla.IsIdentical(j1i.SubL, wffDL) &&
-				fmla.IsIdentical(j1i.SubR, wffDR) {
-				got1 = true
-
-				break
+				fmla.IsIdentical(j1i.SubR, wffDR)) {
+				continue
 			}
-		}
 
-		for _, j2 = range lns {
-			if j2i = j2.GetLineInfo(); j2i.Mop == fmla.To &&
-				fmla.IsIdentical(j2i.SubL, wffDR) &&
-				fmla.IsIdentical(j2i.SubR, wffDL) {
-				got2 = true
+			for _, j2 = range lns {
+				if j2i = j2.GetLineInfo(); !(j2i.Mop == fmla.To &&
+					fmla.IsIdentical(j2i.SubL, wffDR) &&
+					fmla.IsIdentical(j2i.SubR, wffDL)) {
+					continue
+				}
 
-				break
+				added += prf.AddUniqueLine(wffD, pr.IffIntro, j1, j2)
 			}
-		}
-
-		switch {
-		case got1 && got2:
-			added += prf.AddUniqueLine(wffD, pr.IffIntro, j1, j2)
-		case got1:
-			wffD = fmla.NewCompositeWff(fmla.To, wffDR, wffDL, 0, 0)
-
-			_ = prf.ExtendSubgoals(wffD)
-		case got2:
-			wffD = fmla.NewCompositeWff(fmla.To, wffDL, wffDR, 0, 0)
-
-			_ = prf.ExtendSubgoals(wffD)
-		default:
-			wffD = fmla.NewCompositeWff(fmla.To, wffDR, wffDL, 0, 0)
-
-			_ = prf.ExtendSubgoals(wffD)
-
-			wffD = fmla.NewCompositeWff(fmla.To, wffDL, wffDR, 0, 0)
-
-			_ = prf.ExtendSubgoals(wffD)
 		}
 	}
 
@@ -235,45 +194,23 @@ var tryBotIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
 		lns      []*pr.Line
 		j1, j2   *pr.Line
-		dex      int
 		j1i, j2i *pr.LineInfo
 		wffD     *fmla.WffTree
 	)
 
 	lns = prf.GetLegalLines()
 
-TRYBOTINTRO_OUTER:
-	for dex, j1 = range lns {
+	for _, j1 = range lns {
 		j1i = j1.GetLineInfo()
 
-		for _, j2 = range lns[dex+1:] {
-			j2i = j2.GetLineInfo()
-
-			if j1i.Mop == fmla.Neg && fmla.IsIdentical(j1i.SubL, j2i.Wff) {
-				wffD = fmla.NewAtomicWff(fmla.Bot)
-
-				added += prf.AddUniqueLine(wffD, pr.BotIntro, j1, j2)
-
-				break TRYBOTINTRO_OUTER
+		for _, j2 = range lns {
+			if j2i = j2.GetLineInfo(); !(j2i.Mop == fmla.Neg && fmla.IsIdentical(j2i.SubL, j1i.Wff)) {
+				continue
 			}
 
-			if j2i.Mop == fmla.Neg && fmla.IsIdentical(j2i.SubL, j1i.Wff) {
-				wffD = fmla.NewAtomicWff(fmla.Bot)
+			wffD = fmla.NewAtomicWff(fmla.Bot)
 
-				added += prf.AddUniqueLine(wffD, pr.BotIntro, j2, j1)
-
-				break TRYBOTINTRO_OUTER
-			}
-		}
-	}
-
-	if added == 0 {
-		for _, j1 = range lns {
-			j1i = j1.GetLineInfo()
-
-			wffD = fmla.NewCompositeWff(fmla.Neg, j1i.Wff, nil, 0, 0)
-
-			_ = prf.ExtendSubgoals(wffD)
+			added += prf.AddUniqueLine(wffD, pr.BotIntro, j1, j2)
 		}
 	}
 
@@ -328,25 +265,20 @@ var tryForAllIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		j2i = j2.GetLineInfo()
 
-		apc, aac = prf.GetArbConsts()
+		apc, aac = prf.GetArbConstsFromProof()
 
 		switch {
 		case apc != 0:
 			for _, pv = range fmla.PredVars {
 				wffD = fmla.GeneralizePred(fmla.ForAll, j2i.Wff, apc, pv)
 
-				if prf.MeetsAnyGoal(wffD) {
-					added += prf.AddUniqueLine(wffD, pr.ForAllIntro, j1, j2)
-				}
+				added += prf.AddUniqueLine(wffD, pr.ForAllIntro, j1, j2)
 			}
-
 		case aac != 0:
 			for _, av = range fmla.ArgVars {
 				wffD = fmla.GeneralizeArg(fmla.ForAll, j2i.Wff, aac, av)
 
-				if prf.MeetsAnyGoal(wffD) {
-					added += prf.AddUniqueLine(wffD, pr.ForAllIntro, j1, j2)
-				}
+				added += prf.AddUniqueLine(wffD, pr.ForAllIntro, j1, j2)
 			}
 		}
 	}
@@ -378,7 +310,7 @@ TRYEXISTSINTRO_OUTER:
 			continue
 		}
 
-		pcs, acs = prf.MustSelectHadConsts()
+		pcs, acs = prf.SelectNonArbConsts()
 
 		switch {
 		case pv != 0:
@@ -395,7 +327,6 @@ TRYEXISTSINTRO_OUTER:
 					continue TRYEXISTSINTRO_OUTER
 				}
 			}
-
 		case av != 0:
 			for _, ac = range acs {
 				wffI = fmla.Instantiate(wffD, 0, ac)
@@ -423,7 +354,7 @@ var tryEqualsIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		wffD *fmla.WffTree
 	)
 
-	_, acs = prf.MustSelectHadConsts()
+	_, acs = prf.SelectNonArbConsts()
 
 	for _, ac = range acs {
 		wffD = fmla.NewAtomicWff(fmla.Equals, ac, ac)

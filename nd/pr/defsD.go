@@ -123,7 +123,7 @@ func (prf *Proof) MustSelectArbConsts() (apc fmla.Predicate, aac fmla.Argument) 
 	return
 }
 
-func (prf *Proof) MustSelectHadConsts() (pcs []fmla.Predicate, acs []fmla.Argument) {
+func (prf *Proof) SelectNonArbConsts() (pcs []fmla.Predicate, acs []fmla.Argument) {
 	var (
 		pc fmla.Predicate
 		ac fmla.Argument

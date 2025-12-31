@@ -156,6 +156,8 @@ func (prf *Proof) ExtendSubgoals(goals ...*fmla.WffTree) (ok bool) {
 		}
 
 		prf.sGoals = append(prf.sGoals, goal)
+
+		ok = true
 	}
 
 	return

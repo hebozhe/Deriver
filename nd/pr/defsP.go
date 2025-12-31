@@ -153,7 +153,7 @@ func (prf *Proof) InnerProofIsRedundant(prfI *Proof) (is bool) {
 	return
 }
 
-func (prf *Proof) GetArbConsts() (apc fmla.Predicate, aac fmla.Argument) {
+func (prf *Proof) GetArbConstsFromProof() (apc fmla.Predicate, aac fmla.Argument) {
 	apc, aac = prf.arbPC, prf.arbAC
 
 	return

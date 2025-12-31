@@ -10,7 +10,6 @@ var tryToElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		lns      []*pr.Line
 		j1, j2   *pr.Line
 		j1i, j2i *pr.LineInfo
-		got2     bool
 	)
 
 	lns = prf.GetLegalLines()
@@ -20,21 +19,10 @@ var tryToElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 			continue
 		}
 
-		got2 = false
-
 		for _, j2 = range lns {
 			if j2i = j2.GetLineInfo(); fmla.IsIdentical(j2i.Wff, j1i.SubL) {
-				got2 = true
-
-				break
+				added += prf.AddUniqueLine(j1i.SubR, pr.ToElim, j1, j2)
 			}
-		}
-
-		switch got2 {
-		case true:
-			added += prf.AddUniqueLine(j1i.SubR, pr.ToElim, j1, j2)
-		case false:
-			_ = prf.ExtendSubgoals(j1i.SubL)
 		}
 	}
 
@@ -67,8 +55,6 @@ var tryVeeElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		lns           []*pr.Line
 		j1, j2, j3    *pr.Line
 		j1i, j2i, j3i *pr.LineInfo
-		got2, got3    bool
-		wffD, goal    *fmla.WffTree
 	)
 
 	lns = prf.GetLegalLines()
@@ -79,46 +65,18 @@ var tryVeeElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		}
 
 		for _, j2 = range lns {
-			if j2i = j2.GetLineInfo(); j2i.Mop == fmla.To && fmla.IsIdentical(j2i.SubL, j1i.SubL) {
-				got2 = true
-
-				break
+			if j2i = j2.GetLineInfo(); !(j2i.Mop == fmla.To && fmla.IsIdentical(j2i.SubL, j1i.SubL)) {
+				continue
 			}
-		}
 
-		for _, j3 = range lns {
-			if j3i = j3.GetLineInfo(); j3i.Mop == fmla.To && fmla.IsIdentical(j3i.SubL, j1i.SubR) {
-				got3 = true
+			for _, j3 = range lns {
+				if j3i = j3.GetLineInfo(); !(j3i.Mop == fmla.To && fmla.IsIdentical(j3i.SubL, j1i.SubR)) {
+					continue
+				}
 
-				break
-			}
-		}
-
-		switch {
-		case got2 && got3 && fmla.IsIdentical(j2i.SubR, j3i.SubR):
-			added += prf.AddUniqueLine(j2i.SubR, pr.VeeElim, j1, j2, j3)
-		case got2 && got3:
-			wffD = fmla.NewCompositeWff(fmla.Vee, j2i.SubR, j3i.SubR, 0, 0)
-			wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, wffD, 0, 0)
-
-			_ = prf.ExtendSubgoals(wffD)
-
-			wffD = fmla.NewCompositeWff(fmla.Vee, j2i.SubR, j3i.SubR, 0, 0)
-			wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, wffD, 0, 0)
-
-			_ = prf.ExtendSubgoals(wffD)
-		// There's probably more to exploit, but I'm a lazy bitch.
-		// Motherfucking DS rules for MPL vs. IPL...
-		// Disjunction contraction when j1i.SubL == j1i.SubR...
-		default:
-			for _, goal = range prf.GetAllGoals() {
-				wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, goal, 0, 0)
-
-				_ = prf.ExtendSubgoals(wffD)
-
-				wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, goal, 0, 0)
-
-				_ = prf.ExtendSubgoals(wffD)
+				if fmla.IsIdentical(j2i.SubR, j3i.SubR) {
+					added += prf.AddUniqueLine(j2i.SubR, pr.VeeElim, j1, j2, j3)
+				}
 			}
 		}
 	}
@@ -143,11 +101,11 @@ var tryIffElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubL, j1i.SubR, 0, 0)
 
-		_ = prf.ExtendSubgoals(wffD)
+		added += prf.AddUniqueLine(wffD, pr.IffElim, j1)
 
 		wffD = fmla.NewCompositeWff(fmla.To, j1i.SubR, j1i.SubL, 0, 0)
 
-		_ = prf.ExtendSubgoals(wffD)
+		added += prf.AddUniqueLine(wffD, pr.IffElim, j1)
 	}
 
 	return
@@ -230,7 +188,7 @@ var tryForAllElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 			continue
 		}
 
-		pcs, acs = prf.MustSelectHadConsts()
+		pcs, acs = prf.SelectNonArbConsts()
 
 		switch {
 		case j1i.PVar != 0:
@@ -246,7 +204,6 @@ var tryForAllElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 				added += prf.AddUniqueLine(wffD, pr.ForAllElim, j1)
 			}
 		}
-
 	}
 
 	return
@@ -266,7 +223,7 @@ var tryExistsElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	prfsI = prf.GetInnerProofs(pr.ExistsElim)
 
 	for _, prfI = range prfsI {
-		apc, aac = prfI.GetArbConsts()
+		apc, aac = prfI.GetArbConstsFromProof()
 
 		lnsI = prfI.GetLocalLines()
 
@@ -369,6 +326,7 @@ var tryDiamondElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		lnsI       []*pr.Line
 		j1, j2, j3 *pr.Line
 		j2i, j3i   *pr.LineInfo
+		wffD       *fmla.WffTree
 	)
 
 	prfsI = prf.GetInnerProofs(pr.DiamondElim)
@@ -390,7 +348,9 @@ var tryDiamondElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 			j3i = j3.GetLineInfo()
 
-			added += prf.AddUniqueLine(j3i.Wff, pr.DiamondElim, j1, j2, j3)
+			wffD = fmla.NewCompositeWff(fmla.Diamond, j3i.Wff, nil, 0, 0)
+
+			added += prf.AddUniqueLine(wffD, pr.DiamondElim, j1, j2, j3)
 		}
 	}
 

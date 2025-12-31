@@ -100,7 +100,7 @@ func Derive(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *pr.Proof) {
 		// 5. Create inner proofs to facilitate both introduction and elimination rules.
 		// 6. If (5) produced new, unique inner proofs, return to (1).
 		//    Otherwise, move to (7).
-		if added = SetInnerIntroProofs(prf) + SetInnerElimProofs(prf); 0 < added {
+		if added = seedInnerIntroProofs(prf) + seedInnerElimProofs(prf); 0 < added {
 			continue
 		}
 

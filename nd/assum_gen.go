@@ -5,12 +5,6 @@ import (
 	"Deriver/nd/pr"
 )
 
-func isNotTrivialAtom(pc fmla.Predicate) (does bool) {
-	does = pc != fmla.Top && pc != fmla.Bot && pc != fmla.Equals
-
-	return
-}
-
 func collectInnerProofs(prf *pr.Proof) (prfsI []*pr.Proof) {
 	var (
 		purps [6]pr.NDRule
@@ -30,7 +24,7 @@ func collectInnerProofs(prf *pr.Proof) (prfsI []*pr.Proof) {
 	return
 }
 
-func setInnerIntroProofsRec(prf *pr.Proof) (added uint) {
+func helpSeedInnerIntroProofs(prf *pr.Proof) (added uint) {
 	var (
 		prfsI []*pr.Proof
 		prfI  *pr.Proof
@@ -39,15 +33,18 @@ func setInnerIntroProofsRec(prf *pr.Proof) (added uint) {
 	prfsI = collectInnerProofs(prf)
 
 	for _, prfI = range prfsI {
-		added += SetInnerIntroProofs(prfI) + setInnerIntroProofsRec(prfI)
+		added += seedInnerIntroProofs(prfI) + helpSeedInnerIntroProofs(prfI)
 	}
 
 	return
 }
 
-func SetInnerIntroProofs(prf *pr.Proof) (added uint) {
+func seedInnerIntroProofs(prf *pr.Proof) (added uint) {
 	var (
 		goals                           []*fmla.WffTree
+		lns                             []*pr.Line
+		ln                              *pr.Line
+		li                              *pr.LineInfo
 		lenG                            int
 		goal, subL, subR, ipWff, ipGoal *fmla.WffTree
 		mop                             fmla.Symbol
@@ -66,7 +63,22 @@ func SetInnerIntroProofs(prf *pr.Proof) (added uint) {
 
 		switch mop {
 		case fmla.NoSymbol:
-			if pc, _, _ = fmla.GetWffPredAndArgs(goal); isNotTrivialAtom(pc) {
+			pc, _, _ = fmla.GetWffPredAndArgs(goal)
+
+			switch pc {
+			case fmla.Top, fmla.Equals:
+				// Do nothing. These are 0-justification introduction rules.
+			case fmla.Bot:
+				lns = prf.GetLegalLines()
+
+				for _, ln = range lns {
+					li = ln.GetLineInfo()
+
+					ipGoal = fmla.NewAtomicWff(fmla.Bot)
+
+					added += prf.AddUniqueInnerProof(li.Wff, ipGoal, pr.NegIntro)
+				}
+			default:
 				// For MPL and CPL, add an inner proof for the double-negation of the goal.
 				ipWff = fmla.NewCompositeWff(fmla.Neg, goal, nil, 0, 0)
 
@@ -131,7 +143,7 @@ func SetInnerIntroProofs(prf *pr.Proof) (added uint) {
 
 				apc, _ = prf.MustSelectArbConsts()
 
-				ipGoal = fmla.Instantiate(ipWff, apc, 0)
+				ipGoal = fmla.Instantiate(goal, apc, 0)
 
 				added += prf.AddUniqueInnerProof(ipWff, ipGoal, pr.ForAllIntro)
 			case av != 0:
@@ -139,7 +151,7 @@ func SetInnerIntroProofs(prf *pr.Proof) (added uint) {
 
 				_, aac = prf.MustSelectArbConsts()
 
-				ipGoal = fmla.Instantiate(ipWff, 0, aac)
+				ipGoal = fmla.Instantiate(goal, 0, aac)
 
 				added += prf.AddUniqueInnerProof(ipWff, ipGoal, pr.ForAllIntro)
 			default:
@@ -162,12 +174,12 @@ func SetInnerIntroProofs(prf *pr.Proof) (added uint) {
 
 	// Traverse the inner proofs, themselves, for further inner proofs
 	// to those inner proofs' goals.
-	added += setInnerIntroProofsRec(prf)
+	added += helpSeedInnerIntroProofs(prf)
 
 	return
 }
 
-func setInnerElimProofsRec(prf *pr.Proof) (added uint) {
+func helpSeedInnerElimProofs(prf *pr.Proof) (added uint) {
 	var (
 		prfsI []*pr.Proof
 		prfI  *pr.Proof
@@ -176,20 +188,22 @@ func setInnerElimProofsRec(prf *pr.Proof) (added uint) {
 	prfsI = collectInnerProofs(prf)
 
 	for _, prfI = range prfsI {
-		added += SetInnerElimProofs(prfI) + setInnerElimProofsRec(prfI)
+		added += seedInnerElimProofs(prfI) + helpSeedInnerElimProofs(prfI)
 	}
 
 	return
 }
 
-func SetInnerElimProofs(prf *pr.Proof) (added uint) {
+func seedInnerElimProofs(prf *pr.Proof) (added uint) {
 	var (
-		lns           []*pr.Line
-		ln            *pr.Line
-		li            *pr.LineInfo
-		pv, apc       fmla.Predicate
-		av, aac       fmla.Argument
-		ipWff, ipGoal *fmla.WffTree
+		lns        []*pr.Line
+		ln         *pr.Line
+		li         *pr.LineInfo
+		apc        fmla.Predicate
+		aac        fmla.Argument
+		goals      []*fmla.WffTree
+		goal, wffG *fmla.WffTree
+		ok         bool
 	)
 
 	lns = prf.GetLocalLines()
@@ -198,41 +212,64 @@ func SetInnerElimProofs(prf *pr.Proof) (added uint) {
 		li = ln.GetLineInfo()
 
 		switch li.Mop {
+		case fmla.NoSymbol, fmla.Neg, fmla.Wedge,
+			fmla.Iff, fmla.ForAll, fmla.Box:
+			// If a line doesn't have these (or any) symbols, there's nothing to do.
+		case fmla.Vee:
+			goals = prf.GetAllGoals()
+
+			ok = false
+
+			for _, goal = range goals {
+				wffG = fmla.NewCompositeWff(fmla.To, li.SubL, goal, 0, 0)
+
+				ok = ok || prf.ExtendSubgoals(wffG)
+
+				wffG = fmla.NewCompositeWff(fmla.To, li.SubR, goal, 0, 0)
+
+				ok = ok || prf.ExtendSubgoals(wffG)
+			}
+
+			if ok {
+				added += seedInnerIntroProofs(prf)
+			}
+		case fmla.To:
+			wffG = fmla.NewCompositeWff(fmla.Neg, li.SubL, nil, 0, 0)
+
+			if ok = prf.ExtendSubgoals(li.SubL, wffG); ok {
+				added += seedInnerIntroProofs(prf)
+			}
 		case fmla.Exists:
-			_, pv, av = fmla.GetWffMopAndVars(li.Wff)
+			apc, aac = prf.MustSelectArbConsts()
 
 			switch {
-			case pv != 0:
-				apc, _ = prf.MustSelectArbConsts()
+			case li.PVar != 0 && apc != 0:
+				wffG = fmla.Instantiate(li.SubL, apc, 0)
 
-				ipWff = fmla.Instantiate(li.Wff, apc, 0)
+				goal = fmla.NewAtomicWff(fmla.Top)
 
-				ipGoal = prf.GetAllGoals()[0]
+				added += prf.AddUniqueInnerProof(wffG, goal, pr.ExistsElim, ln)
+			case li.AVar != 0 && aac != 0:
+				wffG = fmla.Instantiate(li.SubL, 0, aac)
 
-				added += prf.AddUniqueInnerProof(ipWff, ipGoal, pr.ExistsElim)
-			case av != 0:
-				_, aac = prf.MustSelectArbConsts()
+				goal = fmla.NewAtomicWff(fmla.Top)
 
-				ipWff = fmla.Instantiate(li.Wff, 0, aac)
-
-				ipGoal = fmla.NewAtomicWff(fmla.Top)
-
-				added += prf.AddUniqueInnerProof(ipWff, ipGoal, pr.ExistsElim)
+				added += prf.AddUniqueInnerProof(wffG, goal, pr.ExistsElim, ln)
 			default:
-				panic("Invalid WffTree")
+				panic("Invalid WffTree, or missing arbitrary constant.")
 			}
 		case fmla.Diamond:
-			ipWff, _ = fmla.GetWffSubformulae(li.Wff)
+			goal = fmla.NewAtomicWff(fmla.Top)
 
-			ipGoal = fmla.NewAtomicWff(fmla.Top)
-
-			added += prf.AddUniqueInnerProof(ipWff, ipGoal, pr.DiamondElim)
+			added += prf.AddUniqueInnerProof(li.SubL, goal, pr.DiamondElim, ln)
+		default:
+			panic("Invalid WffTree")
 		}
 	}
 
 	// Traverse the inner proofs, themselves, for further inner proofs
 	// to those inner proofs' goals.
-	added += setInnerElimProofsRec(prf)
+	added += helpSeedInnerElimProofs(prf)
 
 	return
 }
