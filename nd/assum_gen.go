@@ -54,7 +54,7 @@ func seedInnerIntroProofs(prf *pr.Proof) (added uint) {
 		av, ac, aac                     fmla.Argument
 	)
 
-	goals = prf.GetAllGoals()
+	goals = prf.PopMetSubgoals()
 
 	lenG = len(goals)
 
@@ -74,11 +74,15 @@ func seedInnerIntroProofs(prf *pr.Proof) (added uint) {
 				lns = prf.GetLegalLines()
 
 				for _, ln = range lns {
-					li = ln.GetLineInfo()
+					if li = ln.GetLineInfo(); li.Mop == fmla.Neg {
+						ipWff, _ = fmla.GetWffSubformulae(li.Wff)
 
-					ipGoal = fmla.NewAtomicWff(fmla.Bot)
+						goals = append(goals, ipWff)
+					}
 
-					added += prf.AddUniqueInnerProof(li.Wff, ipGoal, pr.NegIntro)
+					ipWff = fmla.NewCompositeWff(fmla.Neg, li.Wff, nil, 0, 0)
+
+					goals = append(goals, ipWff)
 				}
 			default:
 				// For MPL and CPL, add an inner proof for the double-negation of the goal.
@@ -219,7 +223,7 @@ func seedInnerElimProofs(prf *pr.Proof) (added uint) {
 			fmla.Iff, fmla.ForAll, fmla.Box:
 			// If a line doesn't have these (or any) symbols, there's nothing to do.
 		case fmla.Vee:
-			goals = prf.GetAllGoals()
+			goals = prf.PopMetSubgoals()
 
 			ok = false
 

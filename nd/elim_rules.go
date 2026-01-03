@@ -129,7 +129,7 @@ var tryBotElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 			continue
 		}
 
-		goals = prf.GetAllGoals()
+		goals = prf.PopMetSubgoals()
 
 		for _, wffD = range goals {
 			added += prf.AddUniqueLine(wffD, pr.BotElim, j1)
@@ -263,11 +263,7 @@ var tryEqualsElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 			continue
 		}
 
-		if pred, args, _ = fmla.GetWffPredAndArgs(j1i.Wff); pred != fmla.Equals {
-			continue
-		}
-
-		if args[0] == args[1] {
+		if pred, args, _ = fmla.GetWffPredAndArgs(j1i.Wff); pred != fmla.Equals || args[0] == args[1] {
 			continue
 		}
 
@@ -321,13 +317,15 @@ var tryBoxElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 var tryDiamondElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 	var (
-		prfsI      []*pr.Proof
-		prfI       *pr.Proof
-		lnsI       []*pr.Line
-		j1, j2, j3 *pr.Line
-		j2i, j3i   *pr.LineInfo
-		wffD       *fmla.WffTree
+		prfsI         []*pr.Proof
+		prfI          *pr.Proof
+		lnsI          []*pr.Line
+		j1, j2, j3    *pr.Line
+		j1i, j2i, j3i *pr.LineInfo
+		Fwff, wffD    *fmla.WffTree
 	)
+
+	Fwff = fmla.NewAtomicWff(fmla.Bot)
 
 	prfsI = prf.GetInnerProofs(pr.DiamondElim)
 
@@ -340,13 +338,19 @@ var tryDiamondElim ndRuleFunc = func(prf *pr.Proof) (added uint) {
 
 		j1 = j2i.J1
 
-		for _, j3 = range lnsI[1:] {
+		j1i = j1.GetLineInfo()
+
+		for _, j3 = range lnsI {
 			// Is there even a risk of this?
 			if !prfI.LineWorldIsProofWorld(j3) {
 				continue
 			}
 
-			j3i = j3.GetLineInfo()
+			if j3i = j3.GetLineInfo(); fmla.IsIdentical(j3i.Wff, Fwff) {
+				wffD = fmla.NewUnaryChainWff([]fmla.Symbol{fmla.Neg, fmla.Diamond}, j1i.Wff)
+
+				added += prf.AddUniqueLine(wffD, pr.DiamondElim, j1, j2, j3)
+			}
 
 			wffD = fmla.NewCompositeWff(fmla.Diamond, j3i.Wff, nil, 0, 0)
 

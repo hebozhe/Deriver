@@ -55,7 +55,7 @@ var tryWedgeIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		j1i, j2i           *pr.LineInfo
 	)
 
-	goals = prf.GetAllGoals()
+	goals = prf.PopMetSubgoals()
 
 	lns = prf.GetLegalLines()
 
@@ -93,7 +93,7 @@ var tryVeeIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		j1i                *pr.LineInfo
 	)
 
-	goals = prf.GetAllGoals()
+	goals = prf.PopMetSubgoals()
 
 	lns = prf.GetLegalLines()
 
@@ -124,7 +124,7 @@ var tryIffIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		j1i, j2i           *pr.LineInfo
 	)
 
-	goals = prf.GetAllGoals()
+	goals = prf.PopMetSubgoals()
 
 	lns = prf.GetLegalLines()
 
@@ -300,7 +300,7 @@ var tryExistsIntro ndRuleFunc = func(prf *pr.Proof) (added uint) {
 		av, ac     fmla.Argument
 	)
 
-	goals = prf.GetAllGoals()
+	goals = prf.PopMetSubgoals()
 
 	lns = prf.GetLegalLines()
 

@@ -5,6 +5,13 @@ import (
 	"Deriver/nd/pr"
 )
 
+type Derivation struct {
+	Prf     *pr.Proof
+	InfS    InferStrength
+	ModS    ModalStrength
+	MetGoal bool
+}
+
 func pumpIntroductions(prf *pr.Proof, iFuncs []ndRuleFunc) (added uint, met bool) {
 	var (
 		iFunc  ndRuleFunc
@@ -59,12 +66,13 @@ func pumpEliminations(prf *pr.Proof, eFuncs []ndRuleFunc) (added uint, met bool)
 	return
 }
 
-func Derive(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *pr.Proof) {
+func Derive(goal *fmla.WffTree, prems ...*fmla.WffTree) (drv *Derivation) {
 	var (
+		prf            *pr.Proof
 		infS           InferStrength
 		modS           ModalStrength
 		iFuncs, eFuncs []ndRuleFunc
-		added, popped  uint
+		added          uint
 		met            bool
 	)
 
@@ -81,7 +89,7 @@ func Derive(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *pr.Proof) {
 		if added, met = pumpIntroductions(prf, iFuncs); met {
 			break
 		} else if 0 < added {
-			popped += prf.PopMetSubgoals()
+			_ = prf.PopMetSubgoals()
 
 			continue
 		}
@@ -92,7 +100,7 @@ func Derive(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *pr.Proof) {
 		if added, met = pumpEliminations(prf, eFuncs); met {
 			break
 		} else if 0 < added {
-			popped += prf.PopMetSubgoals()
+			_ = prf.PopMetSubgoals()
 
 			continue
 		}
@@ -116,6 +124,13 @@ func Derive(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *pr.Proof) {
 		} else {
 			modS = incModalStrength(modS)
 		}
+	}
+
+	drv = &Derivation{
+		Prf:     prf,
+		InfS:    infS,
+		ModS:    modS,
+		MetGoal: met,
 	}
 
 	return
