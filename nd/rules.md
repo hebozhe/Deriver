@@ -106,6 +106,7 @@ The equivalency $\Box A \leftrightarrow \neg \Diamond \neg A$ is not derivable i
   - $\Box A@ w_{n} \vdash A@ w_{n+1}$
 - $\Diamond E$:
   - $\Diamond A @ w_{n}, [A @ w_{n+1} \dots B@ w_{n+1}] \vdash \Diamond B @ w_{n}$
+  - $\Diamond A @ w_{n}, [A @ w_{n+1} \dots \bot @ w_{n+1}] \vdash \neg \Diamond A @ w_{n}$
 
 ### Classical Modal Logic K (L+CK) Rules
 
@@ -163,10 +164,8 @@ The equivalency $\Box A \leftrightarrow \neg \Diamond \neg A$ is not derivable i
   - $\Diamond(A \to B),\Box(B \to A) \vdash \Diamond(A \leftrightarrow B)$
   - $\Box(A \to B),\Diamond(B \to A) \vdash \Diamond(A \leftrightarrow B)$
 - $\Diamond \leftrightarrow E$:
-  - $\Diamond(A \leftrightarrow B), \Box A \vdash \Diamond B$
-  - $\Diamond(A \leftrightarrow B), \Box B \vdash \Diamond A$
-  - $\Box(A \leftrightarrow B), \Diamond A \vdash \Diamond B$
-  - $\Box(A \leftrightarrow B), \Diamond B \vdash \Diamond A$
+  - $\Diamond(A \leftrightarrow B) \vdash \Diamond (A \to B)$
+  - $\Diamond(A \leftrightarrow B) \vdash \Diamond (B \to A)$
 - $\Box \bot I$:
   - $A, \neg A \vdash \Box \bot$
 - $\Box \bot E$:
