@@ -8,6 +8,8 @@ import (
 type world uint
 
 type Line struct {
+	dex uint // The line index in the proof.
+
 	wff *fmla.WffTree // The wff on the line.
 	wld world         // The world in which the wff holds.
 
@@ -28,6 +30,8 @@ type LineInfo struct {
 }
 
 type Proof struct {
+	pid []uint // The "proofID", a unique identifier for the proof and its relative position.
+
 	purp   NDRule          // The purpose of the proof, the sought rule to apply.
 	hGoal  *fmla.WffTree   // The head goal, the main formula to be proven via an introduction rule.
 	sGoals []*fmla.WffTree // Subgoals, wffs to prove to apply other rules elsewhere.
@@ -128,6 +132,7 @@ func (prf *Proof) LineIsRedundant(ln *Line) (is bool) {
 		has = fmla.IsIdentical(l.wff, ln.wff) &&
 			l.wld == ln.wld &&
 			l.rule == ln.rule &&
+			// TODO: Check if pointer equality is stable.
 			l.j1 == ln.j1 &&
 			l.j2 == ln.j2 &&
 			l.j3 == ln.j3
@@ -180,6 +185,8 @@ func NewBaseProof(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *Proof) {
 	)
 
 	prf = &Proof{
+		pid: []uint{},
+
 		purp:   Solve, // Only the base proof has Solve as a purpose.
 		hGoal:  fmla.DeepCopy(goal),
 		sGoals: []*fmla.WffTree{},
@@ -197,6 +204,8 @@ func NewBaseProof(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *Proof) {
 	// As a rule, lns can never be empty, so TopIntro is applied vacuously
 	// when no other wff needs to be introduced for a proof or subproof.
 	ln = &Line{
+		dex: uint(len(prf.lns)),
+
 		wff: fmla.NewAtomicWff(fmla.Top),
 		wld: 0,
 
@@ -210,6 +219,8 @@ func NewBaseProof(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *Proof) {
 
 	for _, prem = range prems {
 		ln = &Line{
+			dex: uint(len(prf.lns)),
+
 			wff: fmla.DeepCopy(prem),
 			wld: 0,
 

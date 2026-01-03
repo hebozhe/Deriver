@@ -6,11 +6,11 @@ type NDRule uint8
 // as they will play a part in determining the kind of logic
 // that is needed to derive a given theorem.
 const (
-	Solve NDRule = 0 // This is a vacuous purpose for the base proof.
-	// Assumpions
-	Assumption NDRule = iota + 1
+	Solve NDRule = iota // This is a vacuous purpose for the base proof.
 	Premise
 	Theorem
+	// Assumpions
+	Assumption
 	// Vacuous Propositional Logic (VPL)
 	TopIntro
 	// Implicational Propositional Logic (TPL)

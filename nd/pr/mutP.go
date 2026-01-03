@@ -32,6 +32,8 @@ func (prf *Proof) AddUniqueLine(wff *fmla.WffTree, rule NDRule, js ...*Line) (ad
 	}
 
 	ln = &Line{
+		dex: uint(len(prf.lns)),
+
 		wff: fmla.DeepCopy(wff),
 		wld: prf.wld,
 
@@ -115,6 +117,8 @@ func (prf *Proof) AddUniqueInnerProof(wff, goal *fmla.WffTree, purp NDRule, js .
 	}
 
 	prfI = &Proof{
+		pid: append(prf.pid, uint(len(prf.inner))),
+
 		purp:   purp,
 		hGoal:  fmla.DeepCopy(goal),
 		sGoals: []*fmla.WffTree{},
@@ -163,15 +167,12 @@ func (prf *Proof) ExtendSubgoals(goals ...*fmla.WffTree) (ok bool) {
 	return
 }
 
-func (prf *Proof) PopMetSubgoals() (popped uint) {
+func (prf *Proof) PopMetSubgoals() (goals []*fmla.WffTree) {
 	var (
-		bef, aft int
-		ln       *Line
-		delete   func(g *fmla.WffTree) (has bool)
-		met      bool
+		ln     *Line
+		delete func(g *fmla.WffTree) (has bool)
+		met    bool
 	)
-
-	bef = len(prf.sGoals)
 
 	if _, _, met = prf.HeadGoalMet(); met {
 		prf.sGoals = []*fmla.WffTree{}
@@ -189,9 +190,60 @@ func (prf *Proof) PopMetSubgoals() (popped uint) {
 		}
 	}
 
-	aft = len(prf.sGoals)
+	goals = prf.GetAllGoals()
 
-	popped = uint(bef - aft)
+	return
+}
+
+func (prf *Proof) MustSelectArbConsts() (apc fmla.Predicate, aac fmla.Argument) {
+	var (
+		pc fmla.Predicate
+		ac fmla.Argument
+	)
+
+	for _, pc = range fmla.PredConsts {
+		if !prf.dom.pcs[pc] {
+			apc = pc
+
+			break
+		}
+	}
+
+	for _, ac = range fmla.ArgConsts {
+		if !prf.dom.acs[ac] {
+			aac = ac
+
+			break
+		}
+	}
+
+	switch {
+	case apc == 0 && aac == 0:
+		panic("No arbitrary constants available.")
+	case apc != 0 && aac != 0:
+		panic("Both arbitrary constant kinds found.")
+	}
+
+	return
+}
+
+func (prf *Proof) SelectNonArbConsts() (pcs []fmla.Predicate, acs []fmla.Argument) {
+	var (
+		pc fmla.Predicate
+		ac fmla.Argument
+	)
+
+	for _, pc = range fmla.PredConsts {
+		if prf.dom.pcs[pc] {
+			pcs = append(pcs, pc)
+		}
+	}
+
+	for _, ac = range fmla.ArgConsts {
+		if prf.dom.acs[ac] {
+			acs = append(acs, ac)
+		}
+	}
 
 	return
 }
