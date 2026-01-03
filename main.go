@@ -3,7 +3,6 @@ package main
 import (
 	"Deriver/fmla"
 	"fmt"
-	"strings"
 )
 
 func main() {
@@ -20,10 +19,12 @@ func main() {
 
 		fmt.Println(s)
 
-		if strings.Contains(s, "b=a↔a=b") {
-			fmt.Println("Found!")
+		/*
+			 		if strings.Contains(s, "b=a↔a=b") {
+						fmt.Println("Found!")
 
-			break
-		}
+						break
+					}
+		*/
 	}
 }
