@@ -26,10 +26,12 @@ var (
 	rexIden = regexp.MustCompile(`^[a-z]=[a-z]$`)
 )
 
-func convertNotation(sA string) (sB string) {
+func convertNotation(sA string) (sB string, ok bool) {
 	var (
 		convs []convStruct
 		conv  convStruct
+		rB    rune
+		chrs  string
 	)
 
 	sB = rexWS.ReplaceAllString(sA, "")
@@ -62,6 +64,20 @@ func convertNotation(sA string) (sB string) {
 
 		if conv.pred != 0 {
 			sB = strings.ReplaceAll(sB, conv.from, string(conv.pred))
+		}
+	}
+
+	chrs = string(PredConsts) + string(PredVars) +
+		string(ArgConsts) + string(ArgVars) +
+		string(UnaryOps) + string(BinaryOps) + string(Quantifiers) +
+		string(LPar) + string(RPar) +
+		string(Top) + string(Bot) + string(Equals)
+
+	ok = true
+
+	for _, rB = range sB {
+		if ok = strings.ContainsRune(chrs, rB); !ok {
+			break
 		}
 	}
 
@@ -215,7 +231,7 @@ func cutParser(prs *parser) (mop Symbol, pv Predicate, av Argument, prsL, prsR *
 	return
 }
 
-func parseAtomicWff(prs *parser) (wff *WffTree) {
+func parseAtomicFmla(prs *parser) (wff *WffTree) {
 	var (
 		pred       Predicate
 		args       []Argument
@@ -275,7 +291,7 @@ func isClosedWff(wff *WffTree) (is bool) {
 	return
 }
 
-func ParseStringToWff(s string) (wff *WffTree, ok bool) {
+func parseFullFmla(s string) (fmla *WffTree, ok bool) {
 	var (
 		prs        *parser
 		mop        Symbol
@@ -286,39 +302,55 @@ func ParseStringToWff(s string) (wff *WffTree, ok bool) {
 		okL, okR   bool
 	)
 
-	s = convertNotation(s)
+	if s, ok = convertNotation(s); ok {
+		if prs, ok = newParser(s); ok {
+			if mop, pv, av, prsL, prsR, ok = cutParser(prs); ok {
+				switch mop {
+				case NoSymbol:
+					fmla = parseAtomicFmla(prs)
 
-	if prs, ok = newParser(s); ok {
-		if mop, pv, av, prsL, prsR, ok = cutParser(prs); ok {
-			switch mop {
-			case NoSymbol:
-				wff = parseAtomicWff(prs)
+					ok = fmla != nil
+				case Neg, Box, Diamond:
+					subL, okL = parseFullFmla(prsL.s)
 
-				ok = wff != nil
-			case Neg, Box, Diamond:
-				subL, okL = ParseStringToWff(prsL.s)
+					if ok = okL; ok {
+						fmla = NewCompositeWff(mop, subL, nil, 0, 0)
+					}
+				case Wedge, Vee, To, Iff:
+					subL, okL = parseFullFmla(prsL.s)
 
-				if ok = okL; ok {
-					wff = NewCompositeWff(mop, subL, nil, 0, 0)
+					subR, okR = parseFullFmla(prsR.s)
+
+					if ok = okL && okR; ok {
+						fmla = NewCompositeWff(mop, subL, subR, 0, 0)
+					}
+				case Exists, ForAll:
+					subL, okL = parseFullFmla(prsL.s)
+
+					if ok = okL; ok {
+						fmla = NewCompositeWff(mop, subL, nil, pv, av)
+					}
+				default:
+					panic("Invalid main operator.")
 				}
-			case Wedge, Vee, To, Iff:
-				subL, okL = ParseStringToWff(prsL.s)
-
-				subR, okR = ParseStringToWff(prsR.s)
-
-				if ok = okL && okR; ok {
-					wff = NewCompositeWff(mop, subL, subR, 0, 0)
-				}
-			case Exists, ForAll:
-				subL, okL = ParseStringToWff(prsL.s)
-
-				if ok = okL; ok {
-					wff = NewCompositeWff(mop, subL, nil, pv, av)
-				}
-
-				ok = ok && isClosedWff(wff)
 			}
 		}
+	}
+
+	return
+}
+
+func ParseStringToWff(s string) (wff *WffTree, ok bool) {
+	var (
+		fmla *WffTree
+	)
+
+	fmla, ok = parseFullFmla(s)
+
+	if ok = ok && isClosedWff(fmla); ok {
+		wff = fmla
+	} else {
+		wff = nil
 	}
 
 	return

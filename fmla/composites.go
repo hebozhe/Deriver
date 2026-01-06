@@ -19,57 +19,6 @@ func getLastElement[T any](sl []T) (last T, ok bool) {
 	return
 }
 
-func giveLegitimateVariable(wffA *WffTree) (wffB *WffTree) {
-	var (
-		pvsA, pvsB []Predicate
-		avsA, avsB []Argument
-		pvB        Predicate
-		avB        Argument
-		ok         bool
-	)
-
-	if wffA.kind != Quantified {
-		panic("Invalid WffTree")
-	}
-
-	pvsA, avsA = GetVariables(wffA)
-
-	pvsB, avsB = append(pvsB, PredVars...), append(avsB, ArgVars...)
-
-	pvsB = slices.DeleteFunc(pvsB, func(pv Predicate) (nix bool) {
-		nix = slices.Contains(pvsA, pv)
-
-		return
-	})
-
-	avsB = slices.DeleteFunc(avsB, func(av Argument) (nix bool) {
-		nix = slices.Contains(avsA, av)
-
-		return
-	})
-
-	switch {
-	case wffA.pVar != 0:
-		if pvB, ok = getLastElement(pvsB); !ok {
-			panic("Insufficient predicate variables.")
-		}
-
-		wffB = ReplacePreds(wffA, wffA.pVar, pvB)
-
-		wffB.pVar = pvB
-	case wffA.aVar != 0:
-		if avB, ok = getLastElement(avsB); !ok {
-			panic("Insufficient argument variables.")
-		}
-
-		wffB = ReplaceArgs(wffA, wffA.aVar, avB)
-
-		wffB.aVar = avB
-	}
-
-	return
-}
-
 func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument) (wff *WffTree) {
 	switch {
 	case slices.Contains(UnaryOps, sym):
@@ -121,8 +70,6 @@ func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument)
 		} else {
 			wff.aVar = av
 		}
-
-		wff = giveLegitimateVariable(wff)
 
 		wff.subL.sup = wff
 	}
