@@ -12,13 +12,27 @@ type convStruct struct {
 	pred Predicate
 }
 
+type parser struct {
+	s    string
+	syms []Symbol
+	deps []int
+	wffs []*WffTree
+}
+
+var (
+	rexWS   = regexp.MustCompile(`\s`)
+	rexBase = regexp.MustCompile(`^[A-Z][a-z]*$`)
+	rexTorF = regexp.MustCompile(`^(⊤|⊥)$`)
+	rexIden = regexp.MustCompile(`^[a-z]=[a-z]$`)
+)
+
 func convertNotation(sA string) (sB string) {
 	var (
 		convs []convStruct
 		conv  convStruct
 	)
 
-	sB = regexp.MustCompile(`\s`).ReplaceAllString(sA, "")
+	sB = rexWS.ReplaceAllString(sA, "")
 
 	convs = []convStruct{
 		// Three-character transformations:
@@ -52,13 +66,6 @@ func convertNotation(sA string) (sB string) {
 	}
 
 	return
-}
-
-type parser struct {
-	s    string
-	syms []Symbol
-	deps []int
-	wffs []*WffTree
 }
 
 func newParser(s string) (prs *parser, ok bool) {
@@ -157,8 +164,9 @@ func findMainOperator(prs *parser) (mop Symbol, dexM int, ok bool) {
 	default: // There is no unary or binary operator at depth 0.
 		mop, dexM = NoSymbol, -1
 
-		ok = regexp.MustCompile(`^(⊤|⊥|[a-z]=[a-z])$`).MatchString(prs.s) ||
-			regexp.MustCompile(`^[A-Z][a-z]*$`).MatchString(prs.s)
+		ok = rexBase.MatchString(prs.s) ||
+			rexTorF.MatchString(prs.s) ||
+			rexIden.MatchString(prs.s)
 	}
 
 	return
@@ -170,11 +178,8 @@ func cutParser(prs *parser) (mop Symbol, pv Predicate, av Argument, prsL, prsR *
 		okL, okR bool
 	)
 
-	if regexp.MustCompile(`^[A-Z][a-z]*$`).MatchString(prs.s) {
+	if rexBase.MatchString(prs.s) || rexTorF.MatchString(prs.s) || rexIden.MatchString(prs.s) {
 		// There is no cutting an atomic formula.
-		mop, prsL, prsR, ok = NoSymbol, prs, nil, true
-	} else if regexp.MustCompile(`^(⊤|⊥|[a-z]=[a-z])$`).MatchString(prs.s) {
-		// There is no cutting a special atomic formula.
 		mop, prsL, prsR, ok = NoSymbol, prs, nil, true
 	} else if mop, dex, ok = findMainOperator(prs); !ok {
 		mop, prsL, prsR, ok = NoSymbol, nil, nil, false
@@ -219,11 +224,11 @@ func parseAtomicWff(prs *parser) (wff *WffTree) {
 	)
 
 	switch {
-	case regexp.MustCompile(`^(⊤|⊥)$`).MatchString(prs.s): // Top and bottom.
+	case rexTorF.MatchString(prs.s): // Top or bottom.
 		pred = Predicate(prs.syms[0])
 
 		wff = NewAtomicWff(pred)
-	case regexp.MustCompile(`^[a-z]=[a-z]$`).MatchString(prs.s): // Identity predicate.
+	case rexIden.MatchString(prs.s): // Identity predicate.
 		if lenS = len(prs.syms); lenS != 3 {
 			panic("An identity predicate must have exactly three characters.")
 		}
@@ -233,7 +238,7 @@ func parseAtomicWff(prs *parser) (wff *WffTree) {
 		argL, argR = Argument(prs.syms[0]), Argument(prs.syms[2])
 
 		wff = NewAtomicWff(pred, argL, argR)
-	case regexp.MustCompile(`^[A-Z][a-z]*$`).MatchString(prs.s): // Normal atomic predicate.
+	case rexBase.MatchString(prs.s): // Base atomic predicate.
 		pred = Predicate(prs.syms[0])
 
 		if lenS = len(prs.syms); 1 < lenS {
@@ -250,6 +255,22 @@ func parseAtomicWff(prs *parser) (wff *WffTree) {
 	default:
 		panic("An approved cut led to an illegal atomic formula.")
 	}
+
+	return
+}
+
+func isClosedWff(wff *WffTree) (is bool) {
+	var (
+		pvs        []Predicate
+		avs        []Argument
+		lenP, lenA int
+	)
+
+	pvs, avs = GetFreeVariables(wff)
+
+	lenP, lenA = len(pvs), len(avs)
+
+	is = lenP+lenA == 0
 
 	return
 }
@@ -294,6 +315,8 @@ func ParseStringToWff(s string) (wff *WffTree, ok bool) {
 				if ok = okL; ok {
 					wff = NewCompositeWff(mop, subL, nil, pv, av)
 				}
+
+				ok = ok && isClosedWff(wff)
 			}
 		}
 	}

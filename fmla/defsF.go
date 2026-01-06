@@ -288,6 +288,87 @@ func GetVariables(wff *WffTree) (pvs []Predicate, avs []Argument) {
 	return
 }
 
+func GetFreeVariables(wff *WffTree) (pvs []Predicate, avs []Argument) {
+	var (
+		pvsL, pvsR []Predicate
+		avsL, avsR []Argument
+		av         Argument
+	)
+
+	switch wff.kind {
+	case Atomic:
+		if 'U'-1 < wff.pred && wff.pred < 'Z'+1 {
+			pvs = append(pvs, wff.pred)
+		}
+
+		for _, av = range argStringToArgs(wff.args) {
+			if 'u'-1 < av && av < 'z'+1 {
+				avs = append(avs, av)
+			}
+		}
+	case Unary:
+		pvsL, avsL = GetFreeVariables(wff.subL)
+
+		pvs = append(pvs, pvsL...)
+
+		avs = append(avs, avsL...)
+	case Binary:
+		pvsL, avsL = GetFreeVariables(wff.subL)
+
+		pvsR, avsR = GetFreeVariables(wff.subR)
+
+		pvs = append(pvs, pvsL...)
+		pvs = append(pvs, pvsR...)
+
+		avs = append(avs, avsL...)
+		avs = append(avs, avsR...)
+	case Quantified:
+		// Collect the variables from the subformula.
+		pvsL, avsL = GetFreeVariables(wff.subL)
+
+		pvs = append(pvs, pvsL...)
+
+		avs = append(avs, avsL...)
+
+		// Remove the bound variable from the variables.
+		if wff.pVar != 0 {
+			pvs = slices.DeleteFunc(pvs, func(pv Predicate) (nix bool) {
+				nix = pv == wff.pVar
+
+				return
+			})
+		}
+
+		if wff.aVar != 0 {
+			avs = slices.DeleteFunc(avs, func(av Argument) (nix bool) {
+				nix = av == wff.aVar
+
+				return
+			})
+		}
+	default:
+		panic("Invalid WffTree")
+	}
+
+	pvs = slices.DeleteFunc(pvs, func(pv Predicate) (nix bool) {
+		var dex int = slices.Index(pvs, pv)
+
+		nix = -1 < dex && slices.Contains(pvs[dex+1:], pv)
+
+		return
+	})
+
+	avs = slices.DeleteFunc(avs, func(av Argument) (nix bool) {
+		var dex int = slices.Index(avs, av)
+
+		nix = -1 < dex && slices.Contains(avs[dex+1:], av)
+
+		return
+	})
+
+	return
+}
+
 func GetWffString(wff *WffTree) (s string) {
 	var (
 		wffL, wffR string
