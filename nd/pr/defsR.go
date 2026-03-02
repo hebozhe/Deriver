@@ -11,11 +11,11 @@ const (
 	Theorem
 	// Assumpions
 	Assumption
-	// Vacuous Propositional Logic (VPL)
-	TopIntro
 	// Implicational Propositional Logic (TPL)
+	TopIntro
 	ToIntro
 	ToElim
+	Reiteration
 	// Positive Propositional Logic (PPL)
 	WedgeIntro
 	WedgeElim
@@ -23,7 +23,6 @@ const (
 	VeeElim
 	IffIntro
 	IffElim
-	Reit
 	// Minimal Propositional Logic (MPL)
 	BotIntro
 	NegIntro
@@ -39,14 +38,15 @@ const (
 	// N-Order Logic with Identity (QLi)
 	EqualsIntro
 	EqualsElim
-	// Intuitionistic Modal Logic K (+IK)
+	// Modal Logic
 	BoxIntro
 	BoxElim
 	DiamondElim
-	// Classical Modal Logic K (+CK)
 	DiamondIntro
+	// Modal Logic K
+	IntroK
 	// Modal Logic D (K+D)
-	IntroD
+	ElimD
 	// Modal Logic M (K+M)
 	IntroM
 	ElimM
@@ -58,19 +58,16 @@ const (
 	ElimB
 )
 
-var purposes = [6]NDRule{
-	ToIntro, NegIntro,
-	ForAllIntro, ExistsElim,
-	BoxIntro, DiamondElim,
-}
-
 var purposePCount map[NDRule]int = map[NDRule]int{
-	ToIntro:     0,
-	NegIntro:    0,
+	// Propositional logics:
+	ToIntro:  0,
+	NegIntro: 0,
+	// Quantificational logics:
 	ForAllIntro: 0,
-	ExistsElim:  1,
+	ExistsElim:  1, // The line that has existential quantifier.
+	// Modal logics:
 	BoxIntro:    0,
-	DiamondElim: 1,
+	DiamondElim: 1, // The line that has the diamond operator.
 }
 
 var rulePCount map[NDRule]int = map[NDRule]int{
@@ -82,25 +79,26 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	WedgeIntro:   2,
 	WedgeElim:    1,
 	VeeIntro:     1,
-	VeeElim:      3,
+	VeeElim:      2,
 	IffIntro:     2,
 	IffElim:      1,
-	Reit:         1,
+	Reiteration:  1,
 	BotIntro:     2,
 	BotElim:      1,
-	NegIntro:     1,
+	NegIntro:     2,
 	NegElim:      1,
 	ForAllIntro:  2,
 	ForAllElim:   1,
 	ExistsIntro:  1,
 	ExistsElim:   3,
-	EqualsIntro:  0,
+	EqualsIntro:  1,
 	EqualsElim:   2,
 	BoxIntro:     2,
-	BoxElim:      2,
-	DiamondIntro: 1,
+	BoxElim:      1,
 	DiamondElim:  3,
-	IntroD:       1,
+	DiamondIntro: 1,
+	IntroK:       1,
+	ElimD:        1,
 	IntroM:       1,
 	ElimM:        1,
 	Intro4:       1,
@@ -109,18 +107,26 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	ElimB:        1,
 }
 
-func correctJCount(rule, purp NDRule, lenJ int) (ok bool) {
+func isJCountCorrect(rule, purp NDRule, lenJ int) (is bool) {
 	var (
 		lenC int
 	)
 
 	if rule == Assumption {
-		if lenC, ok = purposePCount[purp]; ok {
-			ok = lenJ == lenC
+		if lenC, is = purposePCount[purp]; is {
+			is = lenJ == lenC
 		}
-	} else if lenC, ok = rulePCount[rule]; ok {
-		ok = lenJ == lenC
+	} else {
+		lenC = rulePCount[rule]
+
+		is = lenJ == lenC
 	}
+
+	return
+}
+
+func isDischargeRule(rule NDRule) (is bool) {
+	_, is = purposePCount[rule]
 
 	return
 }
