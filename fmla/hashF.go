@@ -5,7 +5,9 @@ import (
 	"hash/fnv"
 )
 
-func hashWff(wff *WffTree) (h uint64) {
+type WffHash uint64
+
+func hashWff(wff *WffTree) (h WffHash) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -14,13 +16,12 @@ func hashWff(wff *WffTree) (h uint64) {
 
 	hashWffInto(hash64, wff)
 
-	h = hash64.Sum64()
+	h = WffHash(hash64.Sum64())
 
 	return
 }
 
 func hashWffInto(hash64 hash.Hash64, wff *WffTree) {
-	// Node kind tag
 	hash64.Write([]byte{byte(wff.kind)})
 
 	switch wff.kind {
@@ -40,11 +41,17 @@ func hashWffInto(hash64 hash.Hash64, wff *WffTree) {
 		hashWffInto(hash64, wff.subR)
 	case Quantified:
 		hash64.Write([]byte{byte(wff.mop)})
-		hash64.Write([]byte{byte(wff.pVar)})
-		hash64.Write([]byte{byte(wff.aVar)})
+		hash64.Write([]byte{byte(wff.pv)})
+		hash64.Write([]byte{byte(wff.av)})
 
 		hashWffInto(hash64, wff.subL)
 	default:
 		panic("invalid WffKind")
 	}
+}
+
+func GetWffHash(wff *WffTree) (h WffHash) {
+	h = hashWff(wff)
+
+	return
 }

@@ -275,7 +275,7 @@ func parseAtomicFmla(prs *parser) (wff *WffTree) {
 	return
 }
 
-func isClosedWff(wff *WffTree) (is bool) {
+func IsClosedWff(wff *WffTree) (is bool) {
 	var (
 		pvs        []Predicate
 		avs        []Argument
@@ -347,7 +347,7 @@ func ParseStringToWff(s string) (wff *WffTree, ok bool) {
 
 	fmla, ok = parseFullFmla(s)
 
-	if ok = ok && isClosedWff(fmla); ok {
+	if ok = ok && IsClosedWff(fmla); ok {
 		wff = fmla
 	} else {
 		wff = nil

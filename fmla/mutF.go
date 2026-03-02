@@ -5,8 +5,8 @@ func DeepCopy(wff *WffTree) (wffC *WffTree) {
 		wffC = &WffTree{
 			kind: wff.kind,
 			mop:  wff.mop,
-			pVar: wff.pVar,
-			aVar: wff.aVar,
+			pv:   wff.pv,
+			av:   wff.av,
 			pred: wff.pred,
 			args: wff.args,
 			subL: DeepCopy(wff.subL),
@@ -22,7 +22,6 @@ func DeepCopy(wff *WffTree) (wffC *WffTree) {
 		if wffC.subR != nil {
 			wffC.subR.sup = wffC
 		}
-
 	}
 
 	return
@@ -33,11 +32,7 @@ func ReplacePreds(wff *WffTree, pA Predicate, pB Predicate) (wffR *WffTree) {
 		panic("Invalid WffTree")
 	}
 
-	if wff.sup == nil {
-		wffR = DeepCopy(wff)
-	} else {
-		wffR = wff
-	}
+	wffR = DeepCopy(wff)
 
 	switch wffR.kind {
 	case Atomic:
@@ -71,11 +66,7 @@ func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (wffR *WffTree) {
 		panic("Invalid WffTree")
 	}
 
-	if wff.sup == nil {
-		wffR = DeepCopy(wff)
-	} else {
-		wffR = wff
-	}
+	wffR = DeepCopy(wff)
 
 	switch wffR.kind {
 	case Atomic:
@@ -155,8 +146,8 @@ func ReplaceEachArgOnce(wff *WffTree, aA Argument, aB Argument) (wffsR []*WffTre
 			wffN = &WffTree{
 				kind: Atomic,
 				mop:  wffC.mop,
-				pVar: wffC.pVar,
-				aVar: wffC.aVar,
+				pv:   wffC.pv,
+				av:   wffC.av,
 				pred: wffC.pred,
 				args: s,
 				subL: DeepCopy(wffC.subL),
@@ -196,7 +187,7 @@ func ReplaceEachArgOnce(wff *WffTree, aA Argument, aB Argument) (wffsR []*WffTre
 		subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
 
 		for _, sub = range subLs {
-			wffN = NewCompositeWff(wffC.mop, sub, nil, wffC.pVar, wffC.aVar)
+			wffN = NewCompositeWff(wffC.mop, sub, nil, wffC.pv, wffC.av)
 
 			wffsR = append(wffsR, wffN)
 		}
@@ -228,8 +219,8 @@ func ReplaceWff(wff, wffA, wffB *WffTree) (wffR *WffTree) {
 		wffR = &WffTree{
 			kind: Atomic,
 			mop:  wffB.mop,
-			pVar: wffB.pVar,
-			aVar: wffB.aVar,
+			pv:   wffB.pv,
+			av:   wffB.av,
 			pred: wffB.pred,
 			args: wffB.args,
 			subL: DeepCopy(wffB.subL),
@@ -264,32 +255,32 @@ func ReplaceWff(wff, wffA, wffB *WffTree) (wffR *WffTree) {
 	return
 }
 
-func AllSubformulae(wff *WffTree) (wffs []*WffTree) {
+func GetAllSubformulae(wff *WffTree) (swffs []*WffTree) {
 	var (
 		swffsL, swffsR []*WffTree
 	)
 
 	wff = DeepCopy(wff)
 
-	wffs = append(wffs, wff)
+	swffs = append(swffs, wff)
 
 	switch wff.kind {
 	case Atomic:
 	case Unary:
-		swffsL = AllSubformulae(wff.subL)
+		swffsL = GetAllSubformulae(wff.subL)
 
-		wffs = append(wffs, swffsL...)
+		swffs = append(swffs, swffsL...)
 	case Binary:
-		swffsL = AllSubformulae(wff.subL)
+		swffsL = GetAllSubformulae(wff.subL)
 
-		swffsR = AllSubformulae(wff.subR)
+		swffsR = GetAllSubformulae(wff.subR)
 
-		wffs = append(wffs, swffsL...)
-		wffs = append(wffs, swffsR...)
+		swffs = append(swffs, swffsL...)
+		swffs = append(swffs, swffsR...)
 	case Quantified:
-		swffsL = AllSubformulae(wff.subL)
+		swffsL = GetAllSubformulae(wff.subL)
 
-		wffs = append(wffs, swffsL...)
+		swffs = append(swffs, swffsL...)
 	default:
 		panic("Invalid WffTree")
 	}
@@ -307,10 +298,10 @@ func Instantiate(wff *WffTree, pred Predicate, arg Argument) (wffI *WffTree) {
 	}
 
 	switch {
-	case wff.pVar != 0 && pred != 0:
-		wffI = ReplacePreds(wff, wff.pVar, pred)
-	case wff.aVar != 0 && arg != 0:
-		wffI = ReplaceArgs(wff, wff.aVar, arg)
+	case wff.pv != 0 && pred != 0:
+		wffI = ReplacePreds(wff.subL, wff.pv, pred)
+	case wff.av != 0 && arg != 0:
+		wffI = ReplaceArgs(wff.subL, wff.av, arg)
 	default:
 		panic("Parameters cannot qualify for instantiation.")
 	}
@@ -318,7 +309,7 @@ func Instantiate(wff *WffTree, pred Predicate, arg Argument) (wffI *WffTree) {
 	return
 }
 
-func GeneralizePred(mop Symbol, wff *WffTree, pred, pVar Predicate) (wffP *WffTree) {
+func GeneralizePred(mop Symbol, wff *WffTree, pc, pv Predicate) (wffP *WffTree) {
 	var subL *WffTree
 
 	if wff == nil {
@@ -329,10 +320,10 @@ func GeneralizePred(mop Symbol, wff *WffTree, pred, pVar Predicate) (wffP *WffTr
 		panic("Invalid symbol for generalization.")
 	}
 
-	if pred != 0 && pVar != 0 {
-		subL = ReplacePreds(wff, pred, pVar)
+	if pc != 0 && pv != 0 {
+		subL = ReplacePreds(wff, pc, pv)
 
-		wffP = NewCompositeWff(mop, subL, nil, pVar, 0)
+		wffP = NewCompositeWff(mop, subL, nil, pv, 0)
 	} else {
 		panic("Parameters cannot qualify for generalization.")
 	}

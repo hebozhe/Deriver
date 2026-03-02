@@ -61,13 +61,9 @@ func TestConvertNotation(t *testing.T) {
 				t.Logf("\nPASSED: Detected invalid charaters: %q to %q.", tc.sIn, tc.sOut)
 			}
 		} else if s != tc.sOut {
-			t.Errorf("\nFAILED: Expected %q from %q, got %q.", tc.sOut, tc.sIn, s)
-
-			break
+			t.Fatalf("\nFAILED: Expected %q from %q, got %q.", tc.sOut, tc.sIn, s)
 		} else if ok != tc.exp {
-			t.Errorf("\nFAILED: Expected %t, got %t.", tc.exp, ok)
-
-			break
+			t.Fatalf("\nFAILED: Expected %t, got %t.", tc.exp, ok)
 		}
 	}
 }
@@ -114,9 +110,7 @@ func TestNewParser(t *testing.T) {
 				t.Logf("\nPASSED: Detected invalid parse: %q.", tc.s)
 			}
 		} else {
-			t.Errorf("\nFAILED: Expected %t from %q, got %t.", tc.exp, tc.s, ok)
-
-			break
+			t.Fatalf("\nFAILED: Expected %t from %q, got %t.", tc.exp, tc.s, ok)
 		}
 	}
 }
@@ -251,9 +245,7 @@ func TestParseStringToWff(t *testing.T) {
 		if wff, ok = ParseStringToWff(tc.s); ok == tc.exp {
 			if wff != nil {
 				if mop = GetWffMop(wff); mop != tc.mop {
-					t.Errorf("\nFAILED: Expected main operator %q from %q, got %q.", tc.mop, tc.s, mop)
-
-					break
+					t.Fatalf("\nFAILED: Expected main operator %q from %q, got %q.", tc.mop, tc.s, mop)
 				}
 			}
 
@@ -264,9 +256,7 @@ func TestParseStringToWff(t *testing.T) {
 				t.Logf("\nPASSED: Detected ill-formed parse: %q.", tc.s)
 			}
 		} else {
-			t.Errorf("\nFAILED: Expected %t from %q, got %t.", tc.exp, tc.s, ok)
-
-			break
+			t.Fatalf("\nFAILED: Expected %t from %q, got %t.", tc.exp, tc.s, ok)
 		}
 	}
 }
@@ -302,23 +292,17 @@ func TestRoundTrip(t *testing.T) {
 
 	for _, sA = range ss {
 		if wffA, ok = ParseStringToWff(sA); !ok {
-			t.Errorf("\nFAILED: Failed to parse %q.", sA)
-
-			break
+			t.Fatalf("\nFAILED: Failed to parse %q.", sA)
 		}
 
 		sB = GetWffString(wffA)
 
 		if wffB, ok = ParseStringToWff(sB); !ok {
-			t.Errorf("\nFAILED: Failed to parse %q.", sA)
-
-			break
+			t.Fatalf("\nFAILED: Failed to parse %q.", sA)
 		}
 
 		if !IsIdentical(wffA, wffB) {
-			t.Errorf("\nFAILED: %q and %q are not identical by their hashes.", sA, sB)
-
-			break
+			t.Fatalf("\nFAILED: %q and %q are not identical by their hashes.", sA, sB)
 		}
 	}
 }

@@ -66,9 +66,9 @@ func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument)
 		}
 
 		if pv != 0 {
-			wff.pVar = pv
+			wff.pv = pv
 		} else {
-			wff.aVar = av
+			wff.av = av
 		}
 
 		wff.subL.sup = wff

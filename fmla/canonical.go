@@ -139,17 +139,17 @@ func MakeCanonical(wff *WffTree) (cwff *WffTree) {
 			buildMaps(wt.subL)
 			buildMaps(wt.subR)
 		case Quantified:
-			if wt.pVar != 0 {
-				if _, ok = pvMap[wt.pVar]; !ok && pvDex < lenPV {
-					pvMap[wt.pVar] = PredVars[pvDex]
+			if wt.pv != 0 {
+				if _, ok = pvMap[wt.pv]; !ok && pvDex < lenPV {
+					pvMap[wt.pv] = PredVars[pvDex]
 
 					pvDex += 1
 				}
 			}
 
-			if wt.aVar != 0 {
-				if _, ok = avMap[wt.aVar]; !ok && avIdx < lenAV {
-					avMap[wt.aVar] = ArgVars[avIdx]
+			if wt.av != 0 {
+				if _, ok = avMap[wt.av]; !ok && avIdx < lenAV {
+					avMap[wt.av] = ArgVars[avIdx]
 
 					avIdx += 1
 				}
@@ -183,11 +183,11 @@ func MakeCanonical(wff *WffTree) (cwff *WffTree) {
 
 		switch wt.kind {
 		case Quantified:
-			if wt.pVar != 0 {
-				wt.pVar = pvMap[wt.pVar]
+			if wt.pv != 0 {
+				wt.pv = pvMap[wt.pv]
 			}
-			if wt.aVar != 0 {
-				wt.aVar = avMap[wt.aVar]
+			if wt.av != 0 {
+				wt.av = avMap[wt.av]
 			}
 
 			applyMaps(wt.subL)
