@@ -9,17 +9,17 @@ With respect to propositional logic inference rules, every rule in a weaker logi
 - MPL is weaker than IPL.
 - IPL is weaker than CPL.
 
-### Trivial Propositional Logic (TPL) Rules
+### Implicational Propositional Logic (TPL) Rules
 
 - $\top I$:
   - $\vdash \top$
+- $\to I$:
+  - $[A \dots B] \vdash A \to B$
+- $\to E$:
+  - $A \to B, A \vdash B$
 
 ### Positive Propositional Logic (PPL) Rules
 
-- $\to I$:
-  - $[A \dots B], \vdash A \to B$
-- $\to E$:
-  - $A \to B, A \vdash B$
 - $\wedge I$:
   - $A, B \vdash A \wedge B$
 - $\wedge E$:
@@ -29,7 +29,9 @@ With respect to propositional logic inference rules, every rule in a weaker logi
   - $A \vdash A \vee B$
   - $B \vdash A \vee B$
 - $\vee E$:
-  - $A \vee B, A \to C, B \to C \vdash C$
+  - $A \vee B, A \to C \vdash B \vee C$
+  - $A \vee B, B \to C \vdash A \vee C$
+  - $A \vee A, A \to B \vdash B$
 - $\leftrightarrow I$:
   - $A \to B, B \to A \vdash A \leftrightarrow B$
 - $\leftrightarrow E$:
@@ -58,169 +60,86 @@ For convenience in Fitch-style proofs:
 - $\neg E$:
   - $\neg \neg A \vdash A$
 
-## Quantificational Logic (QL) Rules
+## Quantificational Logic (QL)
+
+Where $a/b$ replaces argument $b$ with argument $a$, and where $A/B$ replaces predicate $B$ with predicate $A$:
+
+### Positive Quantificational Logic (PQL) Rules
 
 - $\forall I$:
-  - $A(t) \vdash \forall x A(x/t)$
-    - $t$ must be arbitrary.
+  - $[\top(t/x) \dots A(t)] \vdash \forall x A(x/t)$, where $t$ is arbitrary
+  - $[\top(T/X) \dots \Phi(T)] \vdash \forall X \Phi(X/T)$, where $T$ is arbitrary
 - $\forall E$:
   - $\forall x A(x) \vdash A(t/x)$
+  - $\forall X \Phi(X) \vdash \Phi(A/X)$
 - $\exists I$:
-  - $\exists x A(x),[A(t/x) \dots B] \vdash B$
-    - $t$ must be arbitrary and absent in $B$.
-- $\exists E$:
   - $A(t) \vdash \exists x A(x/t)$
+  - $\Phi(A) \vdash \exists X \Phi(X/A)$
+- $\exists E$:
+  - $\exists x A(x),[A(t/x) \dots B(\xcancel{t})] \vdash B(\xcancel{t})$, where $t$ is arbitrary
+  - $\exists X \Phi(X),[\Phi(T/X) \dots \Psi(\xcancel{T})] \vdash \Psi(\xcancel{T})$, where $T$ is arbitrary
 
-## Quantificational Logic with Identity (QLi) Rules
+## Quantificational Logic with Identity (QLi)
+
+### Positive Quantificational Logic with Identity (PQLi) Rules
 
 - $=I$:
   - $\vdash t=t$
 - $=E$:
   - $t=t', A(t) \vdash A(t'/t)$
 
-## Modal Logic
+## System-Free Positive Modal Logic
 
-The Hilbert-styled axioms, re-fashioned as rules, for minimal/intuitionistic modal logic (L+IK) are:
-
-**Axioms:**
-
-1. $\vdash \Box \top$
-2. $\vdash \neg \Diamond \bot$
-3. $\Box(A \to B) \vdash \Box A \to \Box B$
-4. $\Box(A \to B) \vdash \Diamond A \to \Diamond B$
-5. $\Diamond(A \vee B) \vdash (\Diamond A \vee \Diamond B)$
-6. $\Diamond A \to \Box B \vdash \Box(A \to B)$
-
-**Rules:**
-
-- From $\vdash A$, deduce $\vdash \Box A$.
-- From $A \to B$ and $A$, deduce $B$.
-
-The equivalency $\Box A \leftrightarrow \neg \Diamond \neg A$ is not derivable in L+IK.
-
-### Minimal/Intuitionistic Modal Logic K (L+IK) Rules
+### Positive, System-Free Modal Logic Rules
 
 - $\Box I$:
-  - $[\top @ w_{n+1} \dots A@ w_{n+1}] \vdash \Box A@ w_{n}$
+  - $[\top \dots A] \vdash \Box A$, where $[\top \dots A]$ is an inner proof for $\Box I$.
 - $\Box E$:
-  - $\Box A@ w_{n} \vdash A@ w_{n+1}$
+  - $\Box A, [\dots] \vdash [\dots A]$, where $[\dots]$ is an inner proof for $\Box I$ or $\Diamond E$.
 - $\Diamond E$:
-  - $\Diamond A @ w_{n}, [A @ w_{n+1} \dots B@ w_{n+1}] \vdash \Diamond B @ w_{n}$
-  - $\Diamond A @ w_{n}, [A @ w_{n+1} \dots \bot @ w_{n+1}] \vdash \neg \Diamond A @ w_{n}$
+  - $\Diamond A, [A \dots B] \vdash \Diamond B$, where $[A \dots B]$ is an inner proof for $\Diamond E$.
 
-### Classical Modal Logic K (L+CK) Rules
+### Minimal, System-Free Modal Logic Rules
+
+- $\Box E$:
+  - $\neg \Diamond A, [\dots] \vdash [\dots \neg A]$, where $[\dots]$ is an inner proof for $\Box I$ or $\Diamond E$.
+- $\Diamond E$:
+  - $\Diamond A, [A \dots \bot] \vdash \neg \Diamond B$, where $[A \dots \bot]$ is an inner proof for $\Diamond E$.
+
+### Classical, System-Free Modal Logic Rules
 
 - $\Diamond I$:
-  - $\neg \Box A \vdash \Diamond \neg A$
+  - $\neg \Box A \vdash \Diamond \neg A$.
 
-### Supplemental Minimal/Intuitionistic Modal Logic K (L+IK) Rules
+## System-Bound Modal Logic
 
-- $\Box \top I$:
-  - $\vdash \Box \top$
-- $\Box \top E$:
-  - $\Box \top \vdash \top$
-- $\Diamond \top I$:
-  - $\vdash \Diamond \top$
-- $\Diamond \top E$:
-  - $\Diamond \top \vdash \top$
-- $\Box \to I$:
-  - $[\Diamond A \dots \Box B] \vdash \Box(A \to B)$.
-- $\Box \to E$:
-  - $\Box(A \to B), \Box A \vdash \Box B$.
-- $\Diamond \to I$:
-  - $[\Box A \dots \Diamond B] \vdash \Diamond(A \to B)$
-- $\Diamond \to E$:
-  - $\Diamond(A \to B), \Box A \vdash \Diamond B$.
-  - $\Box(A \to B), \Diamond A \vdash \Diamond B$.
-- $\Box \wedge I$:
-  - $\Box A, \Box B \vdash \Box(A \wedge B)$
-- $\Box \wedge E$:
-  - $\Box(A \wedge B) \vdash \Box A$
-  - $\Box(A \wedge B) \vdash \Box B$
-- $\Diamond \wedge I$:
-  - $\Diamond A, \Box B \vdash \Diamond(A \wedge B)$
-  - $\Box A, \Diamond B \vdash \Diamond(A \wedge B)$
-- $\Diamond \wedge E$:
-  - $\Diamond(A \wedge B) \vdash \Diamond A$
-  - $\Diamond(A \wedge B) \vdash \Diamond B$
-- $\Box \vee I$:
-  - $\Box A \vdash \Box(A \vee B)$
-  - $\Box B \vdash \Box(A \vee B)$
-- $\Box \vee E$:
-  - $\Box(A \vee B), \Box(A \to C), \Box(B \to C) \vdash \Box C$
-- $\Diamond \vee I$:
-  - $\Diamond(A) \vdash \Diamond(A \vee B)$
-  - $\Diamond(B) \vdash \Diamond(A \vee B)$
-- $\Diamond \vee E$:
-  - $\Diamond(A \vee B), \Box(A \to C), \Box(B \to C) \vdash \Diamond C$
-  - $\Box(A \vee B), \Diamond(A \to C), \Box(B \to C) \vdash \Diamond C$
-  - $\Box(A \vee B), \Box(A \to C), \Diamond(B \to C) \vdash \Diamond C$
-- $\Box \leftrightarrow I$:
-  - $\Box(A \to B),\Box(B \to A) \vdash \Box(A \leftrightarrow B)$
-- $\Box \leftrightarrow E$:
-  - $\Box(A \leftrightarrow B), \Box A \vdash \Box B$
-  - $\Box(A \leftrightarrow B), \Box B \vdash \Box A$
-- $\Diamond \leftrightarrow I$:
-  - $\Diamond(A \to B),\Box(B \to A) \vdash \Diamond(A \leftrightarrow B)$
-  - $\Box(A \to B),\Diamond(B \to A) \vdash \Diamond(A \leftrightarrow B)$
-- $\Diamond \leftrightarrow E$:
-  - $\Diamond(A \leftrightarrow B) \vdash \Diamond (A \to B)$
-  - $\Diamond(A \leftrightarrow B) \vdash \Diamond (B \to A)$
-- $\Box \bot I$:
-  - $A, \neg A \vdash \Box \bot$
-- $\Box \bot E$:
-  - $\Box \bot \vdash \bot$
-- $\Diamond \bot I$:
-  - $A, \neg A \vdash \Diamond \bot$
-- $\Diamond \bot E$:
-  - $\Diamond \bot \vdash \bot$
-- $\Box \neg I$:
-  - $[\Diamond A \dots \bot] \vdash \Box \neg A$
-- $\Box \forall I$:
-  - $?$
-- $\Box \forall E$:
-  - $\Box \forall x A(x) \vdash \Box A(t/x)$
-- $\Diamond \forall I$:
-  - $?$
-- $\Diamond \forall E$:
-  - $\Diamond \forall x A(x) \vdash \Diamond A(t/x)$
-- $\Box \exists I$:
-  - $\Box A(t) \vdash \Box \exists x A(x/t)$
-- $\Box \exists E$:
-  - $\Box \exists x A(x),[\Box A(t/x) \dots \Box B] \vdash \Box B$
-    - $t$ must be arbitrary and absent in $B$.
-- $\Diamond \exists I$:
-  - $\Diamond A(t) \vdash \Box \exists x A(x/t)$
-- $\Diamond \exists E$:
-  - $?$
+### Positive System K (L+K) Rules
 
-### Supplemental Classical Modal Logic K (L+CK) Rules
+- $\Box IK$:
+  - $A \vdash \Box A$, when $\vdash A$, where $A$ is a non-modal formula
 
-- $\Diamond \neg I$:
-  - $[\Box A \dots \bot] \vdash \Diamond \neg A$
+### Positive System KD (L+K+D) Rules
 
-### Modal Axiom D (L+IK+D) Rules
-
-- $D$:
+- $\Box ED$:
   - $\Box A \vdash \Diamond A$
 
-### Modal Axiom M (L+IK+M) Rules
+### Positive System KM (L+K+M) Rules
 
-- $MI$:
+- $\Diamond IM$:
   - $A \vdash \Diamond A$
-- $ME$:
+- $\Box EM$:
   - $\Box A \vdash A$
 
-### Modal Axiom 4 (L+IK+4) Rules
+### Positive System K4 (L+K+4) Rules
 
-- $4I$:
+- $\Box I4$:
   - $\Box A \vdash \Box \Box A$
-- $4E$:
+- $\Diamond E4$:
   - $\Diamond \Diamond A \vdash \Diamond A$
 
-### Modal Axiom B (L+IK+B) Rules
+### Positive System KB (L+K+B) Rules
 
-- $BI$:
+- $\Box IB$:
   - $A \vdash \Box \Diamond A$
-- $BE$:
+- $\Diamond EB$:
   - $\Diamond \Box A \vdash A$
