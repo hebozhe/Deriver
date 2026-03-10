@@ -355,3 +355,25 @@ func ParseStringToWff(s string) (wff *WffTree, ok bool) {
 
 	return
 }
+
+func FillTemplate(tmp string, wffs ...*WffTree) (wffT *WffTree) {
+	var (
+		wff *WffTree
+		s   string
+		ok  bool
+	)
+
+	for _, wff = range wffs {
+		s = GetWffString(wff)
+
+		tmp = strings.Replace(tmp, "?", s, 1)
+	}
+
+	if strings.Contains(tmp, "?") {
+		panic("Template not filled.")
+	} else if wffT, ok = ParseStringToWff(tmp); !ok {
+		panic("Failed to parse wff from template.")
+	}
+
+	return
+}

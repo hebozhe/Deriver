@@ -698,7 +698,7 @@ func RetrieveSubformula(wff *WffTree, s string) (sub *WffTree) {
 	case strings.HasPrefix(s, "!"):
 		sub = DeepCopy(wff)
 	default:
-		panic("Invalid retrieval string")
+		panic("Invalid retrieval string.")
 	}
 
 	return
