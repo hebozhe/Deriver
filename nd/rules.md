@@ -29,9 +29,7 @@ With respect to propositional logic inference rules, every rule in a weaker logi
   - $A \vdash A \vee B$
   - $B \vdash A \vee B$
 - $\vee E$:
-  - $A \vee B, A \to C \vdash B \vee C$
-  - $A \vee B, B \to C \vdash A \vee C$
-  - $A \vee A, A \to B \vdash B$
+  - $A \vee B, A \to C, B \to C \vdash C$
 - $\leftrightarrow I$:
   - $A \to B, B \to A \vdash A \leftrightarrow B$
 - $\leftrightarrow E$:
@@ -88,7 +86,7 @@ Where $a/b$ replaces argument $b$ with argument $a$, and where $A/B$ replaces pr
 - $=E$:
   - $t=t', A(t) \vdash A(t'/t)$
 
-## System-Free Positive Modal Logic
+## System-Free Modal Logic
 
 ### Positive, System-Free Modal Logic Rules
 

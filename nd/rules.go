@@ -25,7 +25,7 @@ var toIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln       *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 
 	for _, prfI = range prfsI {
 		if purp = prfI.GetPurpose(); purp != pr.ToIntro {
@@ -59,7 +59,7 @@ var toElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln       *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -96,10 +96,10 @@ var reiterationFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		wff   *fmla.WffTree
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 
 	for _, prfI = range prfsI {
-		if purp = prfI.GetPurpose(); purp == pr.BoxIntro || purp == pr.DiamondElim || !prfI.IsOpen() {
+		if purp = prfI.GetPurpose(); purp == pr.BoxIntro || purp == pr.DiamondElim {
 			continue
 		}
 
@@ -136,7 +136,7 @@ var wedgeIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln              *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -181,7 +181,7 @@ var wedgeElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -217,7 +217,7 @@ var veeIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln              *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -249,15 +249,14 @@ var veeIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 
 var veeElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 	var (
-		prfsI    []*pr.Proof
-		prfI     *pr.Proof
-		lis      []*pr.LineInfo
-		ji1, ji2 *pr.LineInfo
-		wff      *fmla.WffTree
-		ln       *pr.Line
+		prfsI         []*pr.Proof
+		prfI          *pr.Proof
+		lis           []*pr.LineInfo
+		ji1, ji2, ji3 *pr.LineInfo
+		ln            *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -273,37 +272,17 @@ var veeElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 					continue
 				}
 
-				wff = fmla.NewCompositeWff(fmla.Vee, ji2.SubR, ji1.SubR, 0, 0)
+				for _, ji3 = range lis {
+					if ji3.Mop != fmla.To || !fmla.IsIdentical(ji3.SubL, ji1.SubR) {
+						continue
+					}
 
-				ln, _ = pr.NewLine(wff, nil, pr.VeeElim, 0, nil, ji1.Ln, ji2.Ln)
+					if fmla.IsIdentical(ji2.SubR, ji3.SubR) {
+						ln, _ = pr.NewLine(ji2.SubR, nil, pr.VeeElim, 0, nil, ji1.Ln, ji2.Ln, ji3.Ln)
 
-				tot += prfI.InsertLine(ln)
-			}
-
-			for _, ji2 = range lis {
-				if ji2.Mop != fmla.To || !fmla.IsIdentical(ji2.SubL, ji1.SubR) {
-					continue
+						tot += prfI.InsertLine(ln)
+					}
 				}
-
-				wff = fmla.NewCompositeWff(fmla.Vee, ji1.SubL, ji2.SubR, 0, 0)
-
-				ln, _ = pr.NewLine(wff, nil, pr.VeeElim, 0, nil, ji1.Ln, ji2.Ln)
-
-				tot += prfI.InsertLine(ln)
-			}
-
-			if !fmla.IsIdentical(ji1.SubL, ji1.SubR) {
-				continue
-			}
-
-			for _, ji2 = range lis {
-				if ji2.Mop != fmla.To || !fmla.IsIdentical(ji2.SubL, ji1.SubL) {
-					continue
-				}
-
-				ln, _ = pr.NewLine(ji2.SubR, nil, pr.VeeElim, 0, nil, ji1.Ln, ji2.Ln)
-
-				tot += prfI.InsertLine(ln)
 			}
 		}
 	}
@@ -321,7 +300,7 @@ var iffIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln              *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -363,7 +342,7 @@ var iffElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -403,7 +382,7 @@ var botIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln       *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -448,10 +427,10 @@ var negIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln       *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 
 	for _, prfI = range prfsI {
-		if purp = prfI.GetPurpose(); purp != pr.NegIntro {
+		if purp = prfI.GetPurpose(); purp != pr.NegIntro || !prfI.IsOpen() {
 			continue
 		}
 
@@ -485,7 +464,7 @@ var botElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -519,7 +498,7 @@ var negElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -558,10 +537,10 @@ var forAllIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln       *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 
 	for _, prfI = range prfsI {
-		if purp = prfI.GetPurpose(); purp != pr.ForAllIntro {
+		if purp = prfI.GetPurpose(); purp != pr.ForAllIntro || !prfI.IsOpen() {
 			continue
 		}
 
@@ -622,7 +601,7 @@ var forAllElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln      *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -693,7 +672,7 @@ var existsIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln        *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -749,10 +728,10 @@ var existsElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln       *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 
 	for _, prfI = range prfsI {
-		if purp = prfI.GetPurpose(); purp != pr.ExistsElim {
+		if purp = prfI.GetPurpose(); purp != pr.ExistsElim || !prfI.IsOpen() {
 			continue
 		}
 
@@ -780,6 +759,105 @@ var existsElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 	return
 }
 
+// Rules of Quantificational Logic With Identity:
+
+var equalsIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
+	var (
+		prfsI []*pr.Proof
+		prfI  *pr.Proof
+		lis   []*pr.LineInfo
+		acs   []fmla.Argument
+		ac    fmla.Argument
+		ji1   *pr.LineInfo
+		wff   *fmla.WffTree
+		ln    *pr.Line
+	)
+
+	prfsI = drv.Prf.GetInnerProofs(true)
+	prfsI = append(prfsI, drv.Prf)
+
+	for _, prfI = range prfsI {
+		lis, _ = prfI.GetLegalLines()
+
+		for _, ji1 = range lis {
+			if ji1.Mop != fmla.NoSymbol || ji1.Pred != fmla.Equals {
+				continue
+			}
+		}
+
+		_, acs = fmla.GetConstants(ji1.Wff)
+
+		for _, ac = range acs {
+			wff = fmla.NewAtomicWff(fmla.Equals, ac, ac)
+
+			ln, _ = pr.NewLine(wff, nil, pr.EqualsIntro, 0, nil)
+
+			tot += prfI.InsertLine(ln)
+		}
+	}
+
+	return
+}
+
+var equalsElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
+	var (
+		prfsI    []*pr.Proof
+		prfI     *pr.Proof
+		lis      []*pr.LineInfo
+		ji1, ji2 *pr.LineInfo
+		acs      []fmla.Argument
+		wffs     []*fmla.WffTree
+		wff      *fmla.WffTree
+		ln       *pr.Line
+	)
+
+	prfsI = drv.Prf.GetInnerProofs(true)
+	prfsI = append(prfsI, drv.Prf)
+
+	for _, prfI = range prfsI {
+		lis, _ = prfI.GetLegalLines()
+
+		for _, ji2 = range lis {
+			if ji2.Mop != fmla.NoSymbol || ji2.Pred != fmla.Equals {
+				continue
+			}
+
+			// Don't do anything if the constants are the same.
+			if _, acs, _ = fmla.GetWffPredAndArgs(ji2.Wff); acs[0] == acs[1] {
+				continue
+			}
+
+			for _, ji1 = range lis {
+				wffs = fmla.ReplaceEachArgOnce(ji1.Wff, acs[0], acs[1])
+
+				for _, wff = range wffs {
+					if fmla.IsIdentical(wff, ji1.Wff) {
+						continue
+					}
+
+					ln, _ = pr.NewLine(wff, nil, pr.EqualsElim, 0, nil, ji2.Ln, ji1.Ln)
+
+					tot += prfI.InsertLine(ln)
+				}
+
+				wffs = fmla.ReplaceEachArgOnce(ji1.Wff, acs[1], acs[0])
+
+				for _, wff = range wffs {
+					if fmla.IsIdentical(wff, ji1.Wff) {
+						continue
+					}
+
+					ln, _ = pr.NewLine(wff, nil, pr.EqualsElim, 0, nil, ji2.Ln, ji1.Ln)
+
+					tot += prfI.InsertLine(ln)
+				}
+			}
+		}
+	}
+
+	return
+}
+
 // Rules of Positive Modal Logic:
 
 var boxIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
@@ -793,10 +871,10 @@ var boxIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln       *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 
 	for _, prfI = range prfsI {
-		if purp = prfI.GetPurpose(); purp != pr.BoxIntro {
+		if purp = prfI.GetPurpose(); purp != pr.BoxIntro || !prfI.IsOpen() {
 			continue
 		}
 
@@ -813,8 +891,6 @@ var boxIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		tot += ji2.PrfO.InsertLine(ln)
 
 		_ = prfI.CloseProof()
-
-		break
 	}
 
 	return
@@ -831,10 +907,10 @@ var boxElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 
 	for _, prfI = range prfsI {
-		if purp = prfI.GetPurpose(); purp != pr.BoxIntro && purp != pr.DiamondElim {
+		if purp = prfI.GetPurpose(); (purp != pr.BoxIntro && purp != pr.DiamondElim) || !prfI.IsOpen() {
 			continue
 		}
 
@@ -884,12 +960,12 @@ var diamondElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln             *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 
 	bot = fmla.NewAtomicWff(fmla.Bot)
 
 	for _, prfI = range prfsI {
-		if purp = prfI.GetPurpose(); purp != pr.DiamondElim {
+		if purp = prfI.GetPurpose(); purp != pr.DiamondElim || !prfI.IsOpen() {
 			continue
 		}
 
@@ -912,8 +988,6 @@ var diamondElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 				tot += ji3.PrfO.InsertLine(ln)
 
 				_ = prfI.CloseProof()
-
-				break
 			}
 		} else if fmla.IsIdentical(wff, bot) && pr.Positive < drv.InfS { // At least Minimal...
 			for _, ji3 = range lis {
@@ -928,8 +1002,6 @@ var diamondElimFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 				tot += ji3.PrfO.InsertLine(ln)
 
 				_ = prfI.CloseProof()
-
-				break
 			}
 		}
 	}
@@ -949,7 +1021,7 @@ var diamondIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln          *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -982,27 +1054,31 @@ var diamondIntroFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 
 var introKFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 	var (
-		prf *pr.Proof
-		lis []*pr.LineInfo
-		ji1 *pr.LineInfo
-		wff *fmla.WffTree
-		ln  *pr.Line
+		prfsI []*pr.Proof
+		prfI  *pr.Proof
+		lis   []*pr.LineInfo
+		ji1   *pr.LineInfo
+		wff   *fmla.WffTree
+		ln    *pr.Line
 	)
 
-	prf = drv.Prf.GetOutermostProof()
+	prfsI = drv.Prf.GetInnerProofs(true)
+	prfsI = append(prfsI, drv.Prf)
 
-	lis, _ = prf.GetLocalLines()
+	for _, prfI = range prfsI {
+		lis, _ = prfI.GetLocalLines()
 
-	for _, ji1 = range lis {
-		if ji1.Rule == pr.IntroK || !ji1.Prf.IsTheorem(ji1.Ln) {
-			continue
+		for _, ji1 = range lis {
+			if !ji1.Prf.IsTheorem(ji1.Ln) {
+				continue
+			}
+
+			wff = fmla.NewCompositeWff(fmla.Box, ji1.Wff, nil, 0, 0)
+
+			ln, _ = pr.NewLine(wff, nil, pr.IntroK, 0, nil, ji1.Ln)
+
+			tot += prfI.InsertLine(ln)
 		}
-
-		wff = fmla.NewCompositeWff(fmla.Box, ji1.Wff, nil, 0, 0)
-
-		ln, _ = pr.NewLine(wff, nil, pr.IntroK, 0, nil, ji1.Ln)
-
-		tot += prf.InsertLine(ln)
 	}
 
 	return
@@ -1018,7 +1094,7 @@ var elimDFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -1051,7 +1127,7 @@ var introMFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -1088,7 +1164,7 @@ var elimMFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -1119,7 +1195,7 @@ var intro4Func ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -1156,7 +1232,7 @@ var elim4Func ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -1187,7 +1263,7 @@ var introBFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -1225,7 +1301,7 @@ var elimBFunc ndRuleFunc = func(drv *Derivation) (tot int) {
 		ln    *pr.Line
 	)
 
-	prfsI = drv.Prf.GetInnerProofs()
+	prfsI = drv.Prf.GetInnerProofs(true)
 	prfsI = append(prfsI, drv.Prf)
 
 	for _, prfI = range prfsI {
@@ -1259,9 +1335,9 @@ func pushRules(drv *Derivation) (tot int) {
 		tot += veeElimFunc(drv)                                          // Three premises.
 
 		// Quantificational logics...
-		tot += forAllElimFunc(drv) + existsIntroFunc(drv) // One premise.
-		tot += forAllIntroFunc(drv)                       // Two premises.
-		tot += existsElimFunc(drv)                        // Three premises.
+		tot += forAllElimFunc(drv) + existsIntroFunc(drv) + equalsIntroFunc(drv) // One premise.
+		tot += forAllIntroFunc(drv) + equalsElimFunc(drv)                        // Two premises.
+		tot += existsElimFunc(drv)                                               // Three premises.
 
 		// System-Free Modal Logics...
 		if pr.IsAllowedModality(pr.BoxIntro, drv.ModS) {

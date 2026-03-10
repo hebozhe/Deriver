@@ -55,6 +55,8 @@ var tcs []testCase = []testCase{
 	{[]string{"A -> (B -> C)"}, "(A -> B) -> (A -> C)", pr.Implicational, pr.NoSystem},
 	{[]string{"A -> B", "B -> C"}, "A -> C", pr.Implicational, pr.NoSystem},
 	{[]string{"(A -> B) -> C"}, "B -> C", pr.Implicational, pr.NoSystem},
+	{[]string{"A -> B", "A -> (B -> C)"}, "A -> C", pr.Implicational, pr.NoSystem},
+	{[]string{"(A -> B) -> C"}, "D -> ((B -> (C -> E)) -> (B -> E))", pr.Implicational, pr.NoSystem},
 
 	// Implicational theorems, without premises:
 	{nil, "A -> A", pr.Implicational, pr.NoSystem},
@@ -64,6 +66,8 @@ var tcs []testCase = []testCase{
 	{nil, "(A -> (B -> C)) -> ((A -> B) -> (A -> C))", pr.Implicational, pr.NoSystem},
 	{nil, "(A -> B) -> ((B -> C) -> (A -> C))", pr.Implicational, pr.NoSystem},
 	{nil, "((A -> B) -> C) -> (B -> C)", pr.Implicational, pr.NoSystem},
+	{nil, "(A -> B) -> ((A -> (B -> C)) -> (A -> C))", pr.Implicational, pr.NoSystem},
+	{nil, "((A -> B) -> C) -> (D -> ((B -> (C -> E)) -> (B -> E)))", pr.Implicational, pr.NoSystem},
 
 	// Positive theorems, with premises:
 	{[]string{"A", "B"}, "A /\\ B", pr.Positive, pr.NoSystem},
@@ -102,100 +106,124 @@ var tcs []testCase = []testCase{
 	{[]string{"A", "~A"}, "#", pr.Minimal, pr.NoSystem},
 	{[]string{"~A", "A"}, "#", pr.Minimal, pr.NoSystem},
 	{[]string{"A -> B", "~B"}, "~A", pr.Minimal, pr.NoSystem},
+	{[]string{"A -> B"}, "~B -> ~A", pr.Minimal, pr.NoSystem},
 	{[]string{"~A"}, "A -> #", pr.Minimal, pr.NoSystem},
 	{[]string{"A"}, "~A -> #", pr.Minimal, pr.NoSystem},
+	{[]string{"A\\/B", "~A"}, "~~B", pr.Minimal, pr.NoSystem},
+	{[]string{"A\\/B", "~B"}, "~~A", pr.Minimal, pr.NoSystem},
 
 	// Minimal theorems, without premises.
 	{nil, "(A /\\ ~A) -> #", pr.Minimal, pr.NoSystem},
+	{nil, "(A -> B) -> (~B -> ~A)", pr.Minimal, pr.NoSystem},
 	{nil, "A -> (~A -> #)", pr.Minimal, pr.NoSystem},
 	{nil, "~A -> (A -> #)", pr.Minimal, pr.NoSystem},
 	{nil, "# -> ~A", pr.Minimal, pr.NoSystem},
+	{nil, "(A\\/B) -> ((~A -> ~~B)/\\(~B -> ~~A))", pr.Minimal, pr.NoSystem},
 
 	// Intuitionistic theorems, with premises:
 	{[]string{"#"}, "A", pr.Intuitionistic, pr.NoSystem},
+	{[]string{"~A"}, "A -> B", pr.Intuitionistic, pr.NoSystem},
+	{[]string{"A\\/B", "~A"}, "B", pr.Intuitionistic, pr.NoSystem},
+	{[]string{"A\\/B", "~B"}, "A", pr.Intuitionistic, pr.NoSystem},
 
 	// Intuitionistic theorems, without premises:
 	{nil, "# -> A", pr.Intuitionistic, pr.NoSystem},
+	{nil, "~A -> (A -> B)", pr.Intuitionistic, pr.NoSystem},
+	{nil, "(A\\/B) -> ((~A -> B)/\\(~B -> A))", pr.Intuitionistic, pr.NoSystem},
 
 	// Classical theorems, with premises:
 	{[]string{"~~A"}, "A", pr.Classical, pr.NoSystem},
+	{[]string{"~(A \\/ ~A)"}, "A \\/ ~A", pr.Classical, pr.NoSystem},
+	{[]string{"(A -> B) -> A"}, "A", pr.Classical, pr.NoSystem},
+	{[]string{"~A -> ~B"}, "B -> A", pr.Classical, pr.NoSystem},
 
 	// Classical theorems, without premises:
 	{nil, "~~A -> A", pr.Classical, pr.NoSystem},
 	{nil, "A \\/ ~A", pr.Classical, pr.NoSystem},
+	{nil, "((A -> B) -> A) -> A", pr.Classical, pr.NoSystem},
+	{nil, "(~A -> ~B) -> (B -> A)", pr.Classical, pr.NoSystem},
 
-	// Quantificational theorems, with premises:
+	// Positive quantificational theorems, with premises:
 	{[]string{"@x(Ax -> Bx)", "@x(Bx -> Cx)"}, "@x(Ax -> Cx)", pr.Positive, pr.NoSystem},
 	{[]string{"@xAax"}, "Aaa", pr.Positive, pr.NoSystem},
 	{[]string{"@xAax"}, "Aab", pr.Positive, pr.NoSystem},
 	{[]string{"Aaa"}, "$xAxx", pr.Positive, pr.NoSystem},
 	{[]string{"Aaa"}, "$xAax", pr.Positive, pr.NoSystem},
 
-	// Quantificational theorems, without premises:
+	// Positive quantificational theorems, without premises:
 	{nil, "@xAx -> @yAy", pr.Positive, pr.NoSystem},
 	{nil, "@xAx -> Aa", pr.Positive, pr.NoSystem},
 	{nil, "@xAx -> $xAx", pr.Positive, pr.NoSystem},
 	{nil, "Aa -> $xAx", pr.Positive, pr.NoSystem},
 	{nil, "@x(Ax -> Bx) -> ($yAy -> $yBy)", pr.Positive, pr.NoSystem},
 
-	// Positive Modal Logic, with premises:
+	// Positive modal theorems, with premises:
 	{nil, "[]^", pr.Positive, pr.NoSystem},
 	{[]string{"[](A -> B)"}, "[]A -> []B", pr.Positive, pr.NoSystem},
 	{[]string{"[](A -> B)"}, "<>A -> <>B", pr.Positive, pr.NoSystem},
+	{[]string{"[](A /\\ B)"}, "[]A /\\ []B", pr.Positive, pr.NoSystem},
+	{[]string{"[]A /\\ []B"}, "[](A /\\ B)", pr.Positive, pr.NoSystem},
 
-	// Positive Modal Logic, without premises:
+	// Positive modal theorems, without premises:
 	{nil, "[]^", pr.Positive, pr.NoSystem},
 	{nil, "[](A -> B) -> ([]A -> []B)", pr.Positive, pr.NoSystem},
 	{nil, "[](A -> B) -> (<>A -> <>B)", pr.Positive, pr.NoSystem},
+	{nil, "[](A /\\ B) <-> ([]A /\\ []B)", pr.Positive, pr.NoSystem},
 
-	// Minimal Modal Logic, with premises:
+	// Minimal modal theorems, with premises:
 	{[]string{"<>#"}, "#", pr.Minimal, pr.NoSystem},
 	{[]string{"<>A"}, "~[]~A", pr.Minimal, pr.NoSystem},
 
-	// Minimal Modal Logic, without premises:
+	// Minimal modal theorems, without premises:
 	{nil, "<># -> #", pr.Minimal, pr.NoSystem},
+	{nil, "~<>#", pr.Minimal, pr.NoSystem},
 	{nil, "<>A->~[]~A", pr.Minimal, pr.NoSystem},
 
-	// Minimal Modal Logic, without premises:
-	{nil, "~<>#", pr.Minimal, pr.NoSystem},
-	{nil, "<># -> #", pr.Minimal, pr.NoSystem},
-
-	// Classical Modal Logic, with premises:
+	// Classical modal theorems, with premises:
 	{[]string{"~[]~A"}, "<>A", pr.Classical, pr.NoSystem},
-	// {[]string{"<>(A\\/B)"}, "<>A\\/<>B", pr.Classical, pr.NoSystem} // NOTE: Underivable.
+	{[]string{"<>(A\\/B)"}, "<>A\\/<>B", pr.Classical, pr.NoSystem}, // NOTE: Underivable.
 
-	// Classical Modal Logic, without premises:
+	// Classical modal theorems, without premises:
 	{nil, "<>A<->~[]~A", pr.Classical, pr.NoSystem},
 
-	// Modal KD, with premises:
+	// Modal K theorems, with premises:
+
+	// Modal K theorems, without premises:
+	{nil, "[](A -> A)", pr.Positive, pr.SystemK},
+
+	// Modal KD theorems, with premises:
 	{[]string{"[]A"}, "<>A", pr.Positive, pr.SystemKD},
 
-	// Modal KD, without premises:
+	// Modal KD theorems, without premises:
 	{nil, "[]A -> <>A", pr.Positive, pr.SystemKD},
 
-	// Modal KM, with premises:
+	// Modal KM theorems, with premises:
 	{[]string{"A"}, "<>A", pr.Positive, pr.SystemKM},
 	{[]string{"[]A"}, "A", pr.Positive, pr.SystemKM},
 
-	// Modal KM, without premises:
+	// Modal KM theorems, without premises:
 	{nil, "A -> <>A", pr.Positive, pr.SystemKM},
 	{nil, "[]A -> A", pr.Positive, pr.SystemKM},
+	{nil, "(A /\\ B) \\/ (~[]A \\/ ~[]B)", pr.Classical, pr.SystemKM},
 
-	// Modal K4, with premises:
+	// Modal K4 theorems, with premises:
 	{[]string{"[]A"}, "[][]A", pr.Positive, pr.SystemK4},
 	{[]string{"<><>A"}, "<>A", pr.Positive, pr.SystemK4},
 
-	// Modal K4, without premises:
+	// Modal K4 theorems, without premises:
 	{nil, "[]A -> [][]A", pr.Positive, pr.SystemK4},
 	{nil, "<><>A -> <>A", pr.Positive, pr.SystemK4},
 
-	// Modal KB, with premises:
+	// Modal KB theorems, with premises:
 	{[]string{"A"}, "[]<>A", pr.Positive, pr.SystemKB},
 	{[]string{"<>[]A"}, "A", pr.Positive, pr.SystemKB},
 
-	// Modal KB, without premises:
+	// Modal KB theorems, without premises:
 	{nil, "A -> []<>A", pr.Positive, pr.SystemKB},
 	{nil, "<>[]A -> A", pr.Positive, pr.SystemKB},
+
+	// Modal KM4 theorems, with premises:
+	{[]string{"[]([]A->B)", "[]([]B->C)", "[]A"}, "[][]C", pr.Positive, pr.SystemKM4},
 }
 
 func TestNDTheorems(t *testing.T) {

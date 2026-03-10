@@ -24,8 +24,6 @@ type Proof struct {
 
 	prfsI []*Proof
 	prfO  *Proof
-
-	dex int
 }
 
 type LineInfo struct {
@@ -55,6 +53,41 @@ type LineInfo struct {
 	Prf   *Proof
 	PrfsI []*Proof
 	PrfO  *Proof
+}
+
+func getJustificationDependencies(ln *Line) (depsJ map[*Line]bool) {
+	var (
+		deps map[*Line]bool
+		lnJ  *Line
+	)
+
+	depsJ = map[*Line]bool{ln: true}
+
+	if ln.j1 != nil {
+		deps = getJustificationDependencies(ln.j1)
+
+		for lnJ = range deps {
+			depsJ[lnJ] = true
+		}
+	}
+
+	if ln.j2 != nil {
+		deps = getJustificationDependencies(ln.j2)
+
+		for lnJ = range deps {
+			depsJ[lnJ] = true
+		}
+	}
+
+	if ln.j3 != nil {
+		deps = getJustificationDependencies(ln.j3)
+
+		for lnJ = range deps {
+			depsJ[lnJ] = true
+		}
+	}
+
+	return
 }
 
 func NewLine(wff, wffG *fmla.WffTree, rule, purp NDRule, prfO *Proof, js ...*Line) (ln *Line, prfI *Proof) {
@@ -106,8 +139,6 @@ func NewLine(wff, wffG *fmla.WffTree, rule, purp NDRule, prfO *Proof, js ...*Lin
 
 			prfsI: []*Proof{},
 			prfO:  prfO,
-
-			dex: len(prfO.prfsI),
 		}
 
 		switch purp {
@@ -253,6 +284,14 @@ func (prf *Proof) GetInfo(ln *Line) (li *LineInfo) {
 	return
 }
 
+func (prf *Proof) GetDepth() (d int) {
+	if prf.prfO != nil {
+		d = 1 + prf.prfO.GetDepth()
+	}
+
+	return
+}
+
 func (prf *Proof) IsWffGMet() (li *LineInfo, met bool) {
 	var (
 		ln *Line
@@ -306,7 +345,7 @@ func (prf *Proof) GetLegalLines() (lis []*LineInfo, lenL int) {
 
 			apc, aac = prf.GetArbitraryConstants()
 
-			for prfO != nil {
+			for prfO != nil && prfO.isOpen {
 				lisO, _ = prfO.GetLocalLines()
 
 				for _, li = range lisO {
@@ -328,7 +367,7 @@ func (prf *Proof) GetLegalLines() (lis []*LineInfo, lenL int) {
 
 			prfO = prf.prfO
 
-			for prfO != nil {
+			for prfO != nil && prfO.isOpen {
 				lisO, _ = prfO.GetLocalLines()
 
 				for _, li = range lisO {
@@ -348,7 +387,7 @@ func (prf *Proof) GetLegalLines() (lis []*LineInfo, lenL int) {
 		default:
 			prfO = prf.prfO
 
-			for prfO != nil {
+			for prfO != nil && prfO.isOpen {
 				lisO, _ = prfO.GetLocalLines()
 
 				lis = append(lisO, lis...)
@@ -424,16 +463,20 @@ func (prf *Proof) GetOutermostProof() (prfO *Proof) {
 	return
 }
 
-func (prf *Proof) GetInnerProofs() (prfsI []*Proof) {
+func (prf *Proof) GetInnerProofs(open bool) (prfsI []*Proof) {
 	var (
 		prfI   *Proof
 		prfsII []*Proof
 	)
 
-	prfsI = append(prfsI, prf.prfsI...)
-
 	for _, prfI = range prf.prfsI {
-		prfsII = prfI.GetInnerProofs()
+		if open && !prfI.isOpen {
+			continue
+		}
+
+		prfsI = append(prfsI, prfI)
+
+		prfsII = prfI.GetInnerProofs(open)
 
 		prfsI = append(prfsI, prfsII...)
 	}
@@ -441,20 +484,54 @@ func (prf *Proof) GetInnerProofs() (prfsI []*Proof) {
 	return
 }
 
-func (prf *Proof) GetInnermostProofs() (prfsI []*Proof) {
+func (prf *Proof) GetInnermostProofs(open bool) (prfsI []*Proof) {
 	var (
-		lenI   int
-		prfsII []*Proof
-		prfI   *Proof
+		prfs          []*Proof
+		prfI          *Proof
+		lenI          int
+		depthToProofs map[int][]*Proof
+		d, maxD       int
 	)
 
-	if lenI = len(prf.prfsI); lenI == 0 {
-		prfsI = append(prfsI, prf)
-	} else {
-		for _, prfI = range prf.prfsI {
-			prfsII = prfI.GetInnermostProofs()
+	prfs = prf.GetInnerProofs(open)
 
-			prfsI = append(prfsI, prfsII...)
+	if open {
+		depthToProofs = map[int][]*Proof{}
+
+		for _, prfI = range prfs {
+			if !prfI.isOpen {
+				continue
+			}
+
+			d = prfI.GetDepth()
+
+			depthToProofs[d] = append(depthToProofs[d], prfI)
+		}
+
+		for d = range depthToProofs {
+			if maxD < d {
+				maxD = d
+			}
+		}
+
+		if maxD == 0 && prf.isOpen {
+			prfsI = []*Proof{prf}
+		} else {
+			prfsI = depthToProofs[maxD]
+		}
+	} else {
+		for _, prfI = range prfs {
+			if lenI = len(prfI.prfsI); 0 < lenI {
+				continue
+			}
+
+			prfsI = append(prfsI, prfI)
+		}
+
+		if lenI = len(prfsI); lenI == 0 {
+			prfI = prf.GetOutermostProof()
+
+			prfsI = append(prfsI, prfI)
 		}
 	}
 
@@ -567,16 +644,6 @@ func (prf *Proof) GetArbitraryConstants() (apc fmla.Predicate, aac fmla.Argument
 	return
 }
 
-func (prf *Proof) GetPosition() (pos []int) {
-	if prf.prfO != nil {
-		pos = prf.prfO.GetPosition()
-
-		pos = append(pos, prf.prfO.dex)
-	}
-
-	return
-}
-
 func (prf *Proof) CloseProof() (ok bool) {
 	var (
 		prfI *Proof
@@ -585,41 +652,83 @@ func (prf *Proof) CloseProof() (ok bool) {
 	prf.isOpen = false
 
 	for _, prfI = range prf.prfsI {
-		ok = !prf.isOpen && prfI.CloseProof()
+		_ = prfI.CloseProof()
 	}
 
 	return
 }
 
-func getJustDeps(ln *Line) (deps map[*Line]bool) {
+func (prf *Proof) FindJustfyingInnerProof(ln *Line) (prfI *Proof, ok bool) {
+	if ok = isDischargeRule(ln.rule); ok {
+		switch ln.rule {
+		case ToIntro, NegIntro, ForAllIntro, BoxIntro: // Two-line justifications.
+			for _, prfI = range prf.prfsI {
+				if prfI.lns[0] == ln.j1 {
+					break
+				}
+			}
+		case ExistsElim, DiamondElim: // Three-line justifications.
+			for _, prfI = range prf.prfsI {
+				if prfI.lns[0] == ln.j2 {
+					break
+				}
+			}
+		default:
+			panic("Unknown discharge rule.")
+		}
+	}
+
+	ok = prfI != nil
+
+	return
+}
+
+func (prf *Proof) FlattenProof() (lis []*LineInfo) {
 	var (
-		depsJ map[*Line]bool
-		lnJ   *Line
+		prfI            *Proof
+		lisI            []*LineInfo
+		lenI, dex, lenL int
+		li              *LineInfo
 	)
 
-	deps = map[*Line]bool{ln: true}
+	lis, lenL = prf.GetLocalLines()
 
-	if ln.j1 != nil {
-		depsJ = getJustDeps(ln.j1)
+	if lenI = len(prf.prfsI); 0 < lenI {
+	FLATTENPROOF_OUTER:
+		for _, prfI = range prf.prfsI {
+			lisI = prfI.FlattenProof()
 
-		for lnJ = range depsJ {
-			deps[lnJ] = true
-		}
-	}
+			if lenI = len(lisI); 0 == lenI {
+				continue
+			}
 
-	if ln.j2 != nil {
-		depsJ = getJustDeps(ln.j2)
+			for dex, li = range lis {
+				if !isDischargeRule(li.Rule) {
+					continue
+				}
 
-		for lnJ = range depsJ {
-			deps[lnJ] = true
-		}
-	}
+				switch li.Rule {
+				case ToIntro, NegIntro, ForAllIntro, BoxIntro: // Two-line justifications.
+					if lisI[0].Ln == li.J1 {
+						lis = slices.Insert(lis, dex, lisI...)
 
-	if ln.j3 != nil {
-		depsJ = getJustDeps(ln.j3)
+						continue FLATTENPROOF_OUTER
+					}
 
-		for lnJ = range depsJ {
-			deps[lnJ] = true
+				case ExistsElim, DiamondElim: // Three-line justifications.
+					if lisI[0].Ln == li.J2 {
+						lis = slices.Insert(lis, dex, lisI...)
+
+						continue FLATTENPROOF_OUTER
+					}
+				default:
+					panic("Unrecognized discharge rule.")
+				}
+			}
+
+			if dex == lenL {
+				lis = append(lis, lisI...)
+			}
 		}
 	}
 
@@ -628,16 +737,22 @@ func getJustDeps(ln *Line) (deps map[*Line]bool) {
 
 func (prf *Proof) IsTheorem(ln *Line) (is bool) {
 	var (
-		depsJ map[*Line]bool
-		lnJ   *Line
+		prfJ *Proof
+		lis  []*LineInfo
+		li   *LineInfo
 	)
 
-	if is = ln.rule == TopIntro; !is {
-		if is = isDischargeRule(ln.rule) && ln.rule != ExistsElim && ln.rule != DiamondElim; is {
-			depsJ = getJustDeps(ln)
+	if is = isDischargeRule(ln.rule); is {
+		if prfJ, is = prf.FindJustfyingInnerProof(ln); is {
+			lis = prfJ.FlattenProof()
 
-			for lnJ = range depsJ {
-				if is = lnJ.rule != Premise; !is {
+			is = true
+
+			for _, li = range lis {
+				if is = is &&
+					(li.J1 == nil || slices.ContainsFunc(lis, func(liN *LineInfo) (has bool) { has = liN.Ln == li.J1; return })) &&
+					(li.J2 == nil || slices.ContainsFunc(lis, func(liN *LineInfo) (has bool) { has = liN.Ln == li.J2; return })) &&
+					(li.J3 == nil || slices.ContainsFunc(lis, func(liN *LineInfo) (has bool) { has = liN.Ln == li.J3; return })); !is {
 					break
 				}
 			}
@@ -652,7 +767,7 @@ func (prf *Proof) IsJustifiedByLine(lnA *Line, lnJ *Line) (is bool) {
 		depsJ map[*Line]bool
 	)
 
-	depsJ = getJustDeps(lnA)
+	depsJ = getJustificationDependencies(lnA)
 
 	_, is = depsJ[lnJ]
 
@@ -683,8 +798,6 @@ func NewProof(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *Proof) {
 
 		prfsI: []*Proof{},
 		prfO:  nil,
-
-		dex: 0,
 	}
 
 	lh = prf.hashLine(ln)

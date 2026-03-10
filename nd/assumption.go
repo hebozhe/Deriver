@@ -14,6 +14,22 @@ func (drv *Derivation) pushAssumptions(wffG *fmla.WffTree, prf *pr.Proof) (tot i
 
 	switch mopI {
 	case fmla.NoSymbol:
+		if pr.Intuitionistic < drv.InfS { // At least Classical...
+			var (
+				wff, bot *fmla.WffTree
+				prfI     *pr.Proof
+			)
+
+			wff = fmla.NewCompositeWff(fmla.Neg, wffG, nil, 0, 0)
+
+			bot = fmla.NewAtomicWff(fmla.Bot)
+
+			if !fmla.IsIdentical(wffG, bot) {
+				_, prfI = pr.NewLine(wff, bot, pr.Assumption, pr.NegIntro, prf)
+
+				tot += prf.InsertInnerProof(prfI)
+			}
+		}
 	case fmla.Neg:
 		if pr.Positive < drv.InfS { // At least Minimal...
 			var (
@@ -31,6 +47,13 @@ func (drv *Derivation) pushAssumptions(wffG *fmla.WffTree, prf *pr.Proof) (tot i
 		}
 	case fmla.Wedge:
 		if pr.Implicational < drv.InfS { // At least Positive...
+			var (
+				subL, subR *fmla.WffTree
+			)
+
+			subL, subR = fmla.GetWffSubformulae(wffG)
+
+			tot += drv.pushAssumptions(subL, prf) + drv.pushAssumptions(subR, prf)
 		}
 	case fmla.Vee:
 		if pr.Implicational < drv.InfS { // At least Positive...
@@ -46,8 +69,8 @@ func (drv *Derivation) pushAssumptions(wffG *fmla.WffTree, prf *pr.Proof) (tot i
 
 		if pr.Intuitionistic < drv.InfS { // At least Classical...
 			var (
-				wff, bot, subL, subR *fmla.WffTree
-				prfI                 *pr.Proof
+				wff, bot *fmla.WffTree
+				prfI     *pr.Proof
 			)
 
 			wff = fmla.NewCompositeWff(fmla.Neg, wffG, nil, 0, 0)
@@ -57,16 +80,6 @@ func (drv *Derivation) pushAssumptions(wffG *fmla.WffTree, prf *pr.Proof) (tot i
 			_, prfI = pr.NewLine(wff, bot, pr.Assumption, pr.NegIntro, prf)
 
 			tot += prf.InsertInnerProof(prfI)
-
-			subL, subR = fmla.GetWffSubformulae(wffG)
-
-			wff = fmla.NewCompositeWff(fmla.Neg, subL, nil, 0, 0)
-
-			tot += drv.pushAssumptions(wff, prfI)
-
-			wff = fmla.NewCompositeWff(fmla.Neg, subR, nil, 0, 0)
-
-			tot += drv.pushAssumptions(wff, prfI)
 		}
 	case fmla.To:
 		if pr.NoInference < drv.InfS { // At least Implicational...
@@ -185,6 +198,36 @@ func (drv *Derivation) pushAssumptions(wffG *fmla.WffTree, prf *pr.Proof) (tot i
 	return
 }
 
+func (drv *Derivation) helpDistributions() (tot int) {
+	var (
+		prfsI []*pr.Proof
+		prfI  *pr.Proof
+		lis   []*pr.LineInfo
+		li    *pr.LineInfo
+		kind  fmla.WffKind
+		wff   *fmla.WffTree
+	)
+
+	prfsI = drv.Prf.GetInnerProofs(true)
+	prfsI = append(prfsI, drv.Prf)
+
+	for _, prfI = range prfsI {
+		lis, _ = prfI.GetLocalLines()
+
+		for _, li = range lis {
+			if kind = fmla.GetWffKind(li.Wff); kind == fmla.Unary || kind == fmla.Quantified {
+				if wff = distributeWff(li.Wff, drv.InfS, drv.ModS); fmla.IsIdentical(wff, li.Wff) {
+					continue
+				}
+
+				tot += drv.pushAssumptions(wff, prfI)
+			}
+		}
+	}
+
+	return
+}
+
 func (drv *Derivation) helpEliminations() (tot int) {
 	var (
 		prfsI []*pr.Proof
@@ -193,7 +236,7 @@ func (drv *Derivation) helpEliminations() (tot int) {
 		li    *pr.LineInfo
 	)
 
-	prfsI = drv.Prf.GetInnermostProofs()
+	prfsI = drv.Prf.GetInnermostProofs(true)
 
 HELPELIMINATIONS_OUTER:
 	for _, prfI = range prfsI {
@@ -219,18 +262,16 @@ HELPELIMINATIONS_OUTER:
 				// Single-premise rule, do nothing.
 			case fmla.Vee:
 				var (
-					subL, subR, wff, wffG *fmla.WffTree
+					wff, wffG *fmla.WffTree
 				)
-
-				subL, subR = fmla.GetWffSubformulae(li.Wff)
 
 				wff = prfI.GetWffG()
 
-				wffG = fmla.NewCompositeWff(fmla.To, subL, wff, 0, 0)
+				wffG = fmla.NewCompositeWff(fmla.To, li.SubL, wff, 0, 0)
 
 				tot += drv.pushAssumptions(wffG, prfI)
 
-				wffG = fmla.NewCompositeWff(fmla.To, subR, wff, 0, 0)
+				wffG = fmla.NewCompositeWff(fmla.To, li.SubR, wff, 0, 0)
 
 				tot += drv.pushAssumptions(wffG, prfI)
 			case fmla.To:
@@ -254,7 +295,7 @@ HELPELIMINATIONS_OUTER:
 				}
 
 				// Check if we are already eliminating this existential formula.
-				prfsI = drv.Prf.GetInnerProofs()
+				prfsI = prfI.GetInnerProofs(true)
 
 				for _, prf = range prfsI {
 					if li0 = prf.GetFirstLine(); prf.GetPurpose() == pr.ExistsElim && li0.J1 == li.Ln {
@@ -289,7 +330,7 @@ HELPELIMINATIONS_OUTER:
 				}
 
 				// Check if we are already eliminating this diamond formula.
-				prfsI = drv.Prf.GetInnerProofs()
+				prfsI = prfI.GetInnerProofs(true)
 
 				for _, prf = range prfsI {
 					if li0 = prf.GetFirstLine(); prf.GetPurpose() == pr.DiamondElim && li0.J1 == li.Ln {
