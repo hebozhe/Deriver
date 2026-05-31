@@ -1,6 +1,7 @@
 package fmla
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -22,18 +23,21 @@ const (
 	To    Symbol = '→'
 	Iff   Symbol = '↔'
 	// Quantifiers
-	Exists Symbol = '∃'
 	ForAll Symbol = '∀'
+	Exists Symbol = '∃'
 	// Modal Operators
 	Box     Symbol = '□'
 	Diamond Symbol = '◇'
 	// Parentheses
 	LPar Symbol = '('
 	RPar Symbol = ')'
-	// Primitive Operands
-	Equals Predicate = '='
-	Top    Predicate = '⊤'
-	Bot    Predicate = '⊥'
+	// Primitive Predicates
+	Equals    Predicate = '='
+	Top       Predicate = '⊤'
+	Bot       Predicate = '⊥'
+	AlphaPred Predicate = 'Α'
+	// Primtive Arguments
+	AlphaArg Argument = 'α'
 )
 
 var PredConsts = []Predicate("ABCDEFGHIJKLMNOPQRST")
@@ -55,16 +59,17 @@ const (
 	Quantified
 )
 
-type WffTree struct {
+type Wff struct {
 	kind WffKind   // A kind of formula is Atomic, Unary, Binary, or Quantified.
-	mop  Symbol    // If Kind is Unary, Binary, or Quantified, this is the main operator.
-	pv   Predicate // If Kind is Quantified, this is the predicate variable, if it exists.
-	av   Argument  // If Kind is Quantified, this is the argument variable, if it exists.
-	pred Predicate // If Kind is Atomic, this is the predicate.
-	args ArgString // If Kind is Atomic, this is the tuple of arguments.
-	subL *WffTree  // If Kind is Unary, this is the sole operand; if Kind is Binary, this is the left operand.
-	subR *WffTree  // If Kind is Binary, this is the right operand.
-	sup  *WffTree  // If SubL is non-nil, this is the super-formula.
+	mop  Symbol    // If kind is Unary, Binary, or Quantified, this is the main operator.
+	pv   Predicate // If kind is Quantified, this is the predicate variable, if it exists.
+	av   Argument  // If kind is Quantified, this is the argument variable, if it exists.
+	pred Predicate // If kind is Atomic, this is the predicate.
+	args ArgString // If kind is Atomic, this is the tuple of arguments.
+
+	subL *Wff // If kind is Unary, this is the sole operand; if Kind is Binary, this is the left operand.
+	subR *Wff // If kind is Binary, this is the right operand.
+	sup  *Wff // If subL is non-nil, this is the super-formula.
 
 	h WffHash // The hash value of the WffTree.
 }
@@ -93,7 +98,7 @@ func argsToArgString(args ...Argument) (s ArgString) {
 	return
 }
 
-func GetWffKind(wff *WffTree) (kind WffKind) {
+func GetWffKind(wff *Wff) (kind WffKind) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -103,7 +108,7 @@ func GetWffKind(wff *WffTree) (kind WffKind) {
 	return
 }
 
-func GetWffMop(wff *WffTree) (sym Symbol) {
+func GetWffMop(wff *Wff) (sym Symbol) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -113,7 +118,7 @@ func GetWffMop(wff *WffTree) (sym Symbol) {
 	return
 }
 
-func GetWffOps(wff *WffTree) (ops []Symbol) {
+func GetWffOps(wff *Wff) (ops []Symbol) {
 	var (
 		opsL, opsR []Symbol
 	)
@@ -147,7 +152,7 @@ func GetWffOps(wff *WffTree) (ops []Symbol) {
 	return
 }
 
-func GetWffVars(wff *WffTree) (pv Predicate, av Argument) {
+func GetWffVars(wff *Wff) (pv Predicate, av Argument) {
 	if wff == nil || wff.kind != Quantified {
 		panic("Invalid WffTree")
 	}
@@ -165,7 +170,7 @@ func GetWffVars(wff *WffTree) (pv Predicate, av Argument) {
 	return
 }
 
-func GetWffSubformulae(wff *WffTree) (subL, subR *WffTree) {
+func GetWffSubformulae(wff *Wff) (subL, subR *Wff) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -175,7 +180,7 @@ func GetWffSubformulae(wff *WffTree) (subL, subR *WffTree) {
 	return
 }
 
-func GetWffSuperformula(wff *WffTree) (sup *WffTree) {
+func GetWffSuperformula(wff *Wff) (sup *Wff) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -185,7 +190,7 @@ func GetWffSuperformula(wff *WffTree) (sup *WffTree) {
 	return
 }
 
-func GetWffPredAndArgs(wff *WffTree) (pred Predicate, args []Argument, ok bool) {
+func GetWffPredAndArgs(wff *Wff) (pred Predicate, args []Argument, ok bool) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -198,7 +203,7 @@ func GetWffPredAndArgs(wff *WffTree) (pred Predicate, args []Argument, ok bool) 
 	return
 }
 
-func RemoveRedundantEntries(preds []Predicate, args []Argument) (predsU []Predicate, argsU []Argument) {
+func removeRedundantEntries(preds []Predicate, args []Argument) (predsU []Predicate, argsU []Argument) {
 	var (
 		predsMap map[Predicate]bool
 		argsMap  map[Argument]bool
@@ -227,7 +232,7 @@ func RemoveRedundantEntries(preds []Predicate, args []Argument) (predsU []Predic
 	return
 }
 
-func GetConstants(wff *WffTree) (pcs []Predicate, acs []Argument) {
+func GetConstants(wff *Wff) (pcs []Predicate, acs []Argument) {
 	var (
 		pcsL, pcsR []Predicate
 		acsL, acsR []Argument
@@ -236,12 +241,12 @@ func GetConstants(wff *WffTree) (pcs []Predicate, acs []Argument) {
 
 	switch wff.kind {
 	case Atomic:
-		if 'A'-1 < wff.pred && wff.pred < 'T'+1 {
+		if ('A'-1 < wff.pred && wff.pred < 'T'+1) || wff.pred == AlphaPred {
 			pcs = append(pcs, wff.pred)
 		}
 
 		for _, arg = range argStringToArgs(wff.args) {
-			if 'a'-1 < arg && arg < 't'+1 {
+			if ('a'-1 < arg && arg < 't'+1) || arg == AlphaArg {
 				acs = append(acs, arg)
 			}
 		}
@@ -272,13 +277,13 @@ func GetConstants(wff *WffTree) (pcs []Predicate, acs []Argument) {
 	}
 
 	if wff.sup == nil {
-		pcs, acs = RemoveRedundantEntries(pcs, acs)
+		pcs, acs = removeRedundantEntries(pcs, acs)
 	}
 
 	return
 }
 
-func GetVariables(wff *WffTree) (pvs []Predicate, avs []Argument) {
+func GetVariables(wff *Wff) (pvs []Predicate, avs []Argument) {
 	var (
 		pvsL, pvsR []Predicate
 		avsL, avsR []Argument
@@ -331,17 +336,18 @@ func GetVariables(wff *WffTree) (pvs []Predicate, avs []Argument) {
 	}
 
 	if wff.sup == nil {
-		pvs, avs = RemoveRedundantEntries(pvs, avs)
+		pvs, avs = removeRedundantEntries(pvs, avs)
 	}
 
 	return
 }
 
-func GetFreeVariables(wff *WffTree) (pvs []Predicate, avs []Argument) {
+func GetFreeVariables(wff *Wff) (pvs []Predicate, avs []Argument) {
 	var (
 		pvsL, pvsR []Predicate
 		avsL, avsR []Argument
 		arg        Argument
+		dex        int
 	)
 
 	switch wff.kind {
@@ -395,33 +401,30 @@ func GetFreeVariables(wff *WffTree) (pvs []Predicate, avs []Argument) {
 				return
 			})
 		}
+
 	default:
 		panic("Invalid WffTree")
 	}
 
-	pvs = slices.DeleteFunc(pvs, func(pv Predicate) (nix bool) {
-		var dex int = slices.Index(pvs, pv)
+	for dex = len(pvs) - 1; -1 < dex; dex -= 1 {
+		if slices.Contains(pvs[:dex], pvs[dex]) {
+			pvs = slices.Delete(pvs, dex, dex+1)
+		}
+	}
 
-		nix = -1 < dex && slices.Contains(pvs[dex+1:], pv)
-
-		return
-	})
-
-	avs = slices.DeleteFunc(avs, func(av Argument) (nix bool) {
-		var dex int = slices.Index(avs, av)
-
-		nix = -1 < dex && slices.Contains(avs[dex+1:], av)
-
-		return
-	})
+	for dex = len(avs) - 1; -1 < dex; dex -= 1 {
+		if slices.Contains(avs[:dex], avs[dex]) {
+			avs = slices.Delete(avs, dex, dex+1)
+		}
+	}
 
 	return
 }
 
-func GetWffString(wff *WffTree) (s string) {
+func GetWffString(wff *Wff) (s string) {
 	var (
-		wffL, wffR string
-		lenA       int
+		sL, sR string
+		lenA   int
 	)
 
 	if wff == nil {
@@ -451,29 +454,29 @@ func GetWffString(wff *WffTree) (s string) {
 
 	case Binary:
 		if wff.subL.kind == Binary {
-			wffL = "(" + GetWffString(wff.subL) + ")"
+			sL = "(" + GetWffString(wff.subL) + ")"
 		} else {
-			wffL = GetWffString(wff.subL)
+			sL = GetWffString(wff.subL)
 		}
 
 		if wff.subR.kind == Binary {
-			wffR = "(" + GetWffString(wff.subR) + ")"
+			sR = "(" + GetWffString(wff.subR) + ")"
 		} else {
-			wffR = GetWffString(wff.subR)
+			sR = GetWffString(wff.subR)
 		}
 
-		s = wffL + string(wff.mop) + wffR
+		s = sL + string(wff.mop) + sR
 	case Quantified:
 		if wff.subL.kind == Binary {
-			wffL = "(" + GetWffString(wff.subL) + ")"
+			sL = "(" + GetWffString(wff.subL) + ")"
 		} else {
-			wffL = GetWffString(wff.subL)
+			sL = GetWffString(wff.subL)
 		}
 
 		if wff.pv != 0 {
-			s = string(wff.mop) + string(wff.pv) + wffL
+			s = string(wff.mop) + string(wff.pv) + sL
 		} else if wff.av != 0 {
-			s = string(wff.mop) + string(wff.av) + wffL
+			s = string(wff.mop) + string(wff.av) + sL
 		}
 	default:
 		panic("Invalid WffTree")
@@ -482,7 +485,34 @@ func GetWffString(wff *WffTree) (s string) {
 	return
 }
 
-func GetWffLength(wff *WffTree) (lenW uint) {
+func GetOpsString(wff *Wff) (s string) {
+	var (
+		sL, sR string
+	)
+
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	switch wff.kind {
+	case Atomic:
+		s = "."
+	case Unary:
+		s = string(wff.mop) + GetOpsString(wff.subL)
+	case Binary:
+		sL, sR = GetOpsString(wff.subL), GetOpsString(wff.subR)
+
+		s = fmt.Sprintf("%c(%s,%s)", wff.mop, sL, sR)
+	case Quantified:
+		s = string(wff.mop) + GetOpsString(wff.subL)
+	default:
+		panic("Invalid WffTree")
+	}
+
+	return
+}
+
+func GetWffLength(wff *Wff) (lenW uint) {
 	var s string = GetWffString(wff)
 
 	lenW = uint(utf8.RuneCountInString(s))
@@ -490,7 +520,7 @@ func GetWffLength(wff *WffTree) (lenW uint) {
 	return
 }
 
-func GetWffDepth(wff *WffTree) (depW uint) {
+func GetWffDepth(wff *Wff) (depW uint) {
 	var (
 		depL, depR uint
 	)
@@ -511,7 +541,7 @@ func GetWffDepth(wff *WffTree) (depW uint) {
 	return
 }
 
-func HasPred(wff *WffTree, pred Predicate) (has bool) {
+func HasPred(wff *Wff, pred Predicate) (has bool) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -532,7 +562,7 @@ func HasPred(wff *WffTree, pred Predicate) (has bool) {
 	return
 }
 
-func HasArg(wff *WffTree, arg Argument) (has bool) {
+func HasArg(wff *Wff, arg Argument) (has bool) {
 	var args []Argument
 
 	if wff == nil {
@@ -557,7 +587,7 @@ func HasArg(wff *WffTree, arg Argument) (has bool) {
 	return
 }
 
-func HasOp(wff *WffTree, op Symbol) (has bool) {
+func HasOp(wff *Wff, op Symbol) (has bool) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -578,7 +608,7 @@ func HasOp(wff *WffTree, op Symbol) (has bool) {
 	return
 }
 
-func CountOps(wff *WffTree, op Symbol) (count uint) {
+func CountOps(wff *Wff, op Symbol) (count uint) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -603,7 +633,7 @@ func CountOps(wff *WffTree, op Symbol) (count uint) {
 	return
 }
 
-func HasFreeVars(wff *WffTree) (has bool) {
+func HasFreeVars(wff *Wff) (has bool) {
 	var (
 		pvs        []Predicate
 		avs        []Argument
@@ -616,86 +646,51 @@ func HasFreeVars(wff *WffTree) (has bool) {
 
 	pvs, avs = GetFreeVariables(wff)
 
-	if lenP, lenA = len(pvs), len(avs); 0 < lenP+lenA {
-		has = true
-	}
+	lenP, lenA = len(pvs), len(avs)
+
+	has = 0 < lenP+lenA
 
 	return
 }
 
-func FindSubformula(wff *WffTree, sub *WffTree) (s string) {
-	var (
-		sL, sR string
-	)
-
+func HasSubformula(wff *Wff, sub *Wff) (has bool) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
 
-	if IsIdentical(wff, sub) {
-		s = "!"
-	} else {
-		switch wff.kind {
-		case Atomic:
-			// Do nothing. There was no match.
-		case Unary:
-			sL = FindSubformula(wff.subL, sub)
-
-			if strings.HasSuffix(sL, "!") {
-				s = "L" + sL
-			}
-		case Binary:
-			sL, sR = FindSubformula(wff.subL, sub), FindSubformula(wff.subR, sub)
-
-			if strings.HasSuffix(sL, "!") {
-				sL = "L" + sL
-			} else if strings.HasSuffix(sR, "!") {
-				sR = "R" + sR
-			}
-
-			switch {
-			case sL != "" && sR != "":
-				if len(sR) < len(sL) {
-					s = sR
-				} else {
-					s = sL
-				}
-			case sL != "":
-				s = sL
-			case sR != "":
-				s = sR
-			}
-		case Quantified:
-			sL = FindSubformula(wff.subL, sub)
-
-			if strings.HasSuffix(sL, "!") {
-				s = "L" + sL
-			}
-		default:
-			panic("Invalid WffTree")
-		}
+	switch wff.kind {
+	case Atomic:
+		has = IsIdentical(wff, sub)
+	case Unary:
+		has = IsIdentical(wff, sub) || HasSubformula(wff.subL, sub)
+	case Binary:
+		has = IsIdentical(wff, sub) || HasSubformula(wff.subL, sub) || HasSubformula(wff.subR, sub)
+	case Quantified:
+		has = IsIdentical(wff, sub) || HasSubformula(wff.subL, sub)
+	default:
+		panic("Invalid WffTree")
 	}
 
 	return
 }
 
-func RetrieveSubformula(wff *WffTree, s string) (sub *WffTree) {
+func RetrieveSubformula(wff *Wff, loc string) (sub *Wff) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
 
 	switch {
-	case strings.HasPrefix(s, "L"):
+	case strings.HasPrefix(loc, "L"):
 		switch wff.kind {
 		case Unary, Binary, Quantified:
-			sub = RetrieveSubformula(wff.subL, s[1:])
+			sub = RetrieveSubformula(wff.subL, loc[1:])
 		}
-	case strings.HasPrefix(s, "R"):
+	case strings.HasPrefix(loc, "R"):
 		switch wff.kind {
 		case Binary:
-			sub = RetrieveSubformula(wff.subR, s[1:])
+			sub = RetrieveSubformula(wff.subR, loc[1:])
 		}
-	case strings.HasPrefix(s, "!"):
+	case strings.HasPrefix(loc, "!"):
 		sub = DeepCopy(wff)
 	default:
 		panic("Invalid retrieval string.")

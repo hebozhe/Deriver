@@ -2,14 +2,14 @@ package fmla
 
 import "slices"
 
-func orderAtomics(wff *WffTree) (atoms []*WffTree) {
+func orderAtomics(wff *Wff) (atoms []*Wff) {
 	var (
-		atomsL, atomsR []*WffTree
+		atomsL, atomsR []*Wff
 	)
 
 	switch wff.kind {
 	case Atomic:
-		atoms = []*WffTree{wff}
+		atoms = []*Wff{wff}
 	case Unary, Quantified:
 		atoms = orderAtomics(wff.subL)
 	case Binary:
@@ -25,11 +25,11 @@ func orderAtomics(wff *WffTree) (atoms []*WffTree) {
 	return
 }
 
-func IsCanonical(wff *WffTree) (is bool) {
+func IsCanonical(wff *Wff) (is bool) {
 	var (
 		pcDex, acDex uint
-		atoms        []*WffTree
-		atom         *WffTree
+		atoms        []*Wff
+		atom         *Wff
 		ac           Argument
 	)
 
@@ -65,7 +65,7 @@ ISCANONICAL_OUTER:
 	return
 }
 
-func MakeCanonical(wff *WffTree) (cwff *WffTree) {
+func MakeCanonical(wff *Wff) (cwff *Wff) {
 	var (
 		pcMap, pvMap               map[Predicate]Predicate
 		acMap, avMap               map[Argument]Argument
@@ -82,9 +82,9 @@ func MakeCanonical(wff *WffTree) (cwff *WffTree) {
 	lenPC, lenPV, lenAC, lenAV = len(PredConsts), len(PredVars), len(ArgConsts), len(ArgVars)
 
 	// Pass 1: Traverse the tree to build the replacement mappings
-	var buildMaps func(wt *WffTree)
+	var buildMaps func(wt *Wff)
 
-	buildMaps = func(wt *WffTree) {
+	buildMaps = func(wt *Wff) {
 		var (
 			ok   bool
 			args []Argument
@@ -165,9 +165,9 @@ func MakeCanonical(wff *WffTree) (cwff *WffTree) {
 
 	cwff = DeepCopy(wff)
 
-	var applyMaps func(wt *WffTree)
+	var applyMaps func(wt *Wff)
 
-	applyMaps = func(wt *WffTree) {
+	applyMaps = func(wt *Wff) {
 		var (
 			mpc, mpv Predicate
 			mac, mav Argument
@@ -224,12 +224,12 @@ func MakeCanonical(wff *WffTree) (cwff *WffTree) {
 	return
 }
 
-func KeepCanonicalWffs(wffs chan *WffTree) (cwffs chan *WffTree) {
-	cwffs = make(chan *WffTree)
+func KeepCanonicalWffs(wffs chan *Wff) (cwffs chan *Wff) {
+	cwffs = make(chan *Wff)
 
 	go func() {
 		var (
-			wff *WffTree
+			wff *Wff
 		)
 
 		for wff = range wffs {

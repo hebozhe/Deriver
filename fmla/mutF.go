@@ -1,8 +1,12 @@
 package fmla
 
-func DeepCopy(wff *WffTree) (wffC *WffTree) {
+import (
+	"slices"
+)
+
+func DeepCopy(wff *Wff) (wffC *Wff) {
 	if wff != nil {
-		wffC = &WffTree{
+		wffC = &Wff{
 			kind: wff.kind,
 			mop:  wff.mop,
 			pv:   wff.pv,
@@ -27,7 +31,7 @@ func DeepCopy(wff *WffTree) (wffC *WffTree) {
 	return
 }
 
-func ReplacePreds(wff *WffTree, pA Predicate, pB Predicate) (wffR *WffTree) {
+func ReplacePreds(wff *Wff, pA Predicate, pB Predicate) (wffR *Wff) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -56,7 +60,7 @@ func ReplacePreds(wff *WffTree, pA Predicate, pB Predicate) (wffR *WffTree) {
 	return
 }
 
-func ReplaceArgs(wff *WffTree, aA Argument, aB Argument) (wffR *WffTree) {
+func ReplaceArgs(wff *Wff, aA Argument, aB Argument) (wffR *Wff) {
 	var (
 		arg     Argument
 		newArgs ArgString
@@ -120,10 +124,11 @@ func singleReplacements(s ArgString, aA Argument, aB Argument) (ss []ArgString) 
 	return
 }
 
-func ReplaceEachArgOnce(wff *WffTree, aA Argument, aB Argument) (wffsR []*WffTree) {
+func ReplaceEachArgOnce(wff *Wff, aA Argument, aB Argument, barOps ...Symbol) (wffsR []*Wff) {
 	var (
-		wffC, sub, wffN *WffTree
-		subLs, subRs    []*WffTree
+		has             bool
+		wffC, sub, wffN *Wff
+		subLs, subRs    []*Wff
 		ss              []ArgString
 		s               ArgString
 	)
@@ -132,79 +137,75 @@ func ReplaceEachArgOnce(wff *WffTree, aA Argument, aB Argument) (wffsR []*WffTre
 		panic("Invalid WffTree")
 	}
 
-	if wff.sup == nil {
-		wffC = DeepCopy(wff)
-	} else {
-		wffC = wff
-	}
+	if has = slices.Contains(barOps, wff.mop); !has {
+		if wff.sup == nil {
+			wffC = DeepCopy(wff)
+		} else {
+			wffC = wff
+		}
 
-	switch wffC.kind {
-	case Atomic:
-		ss = singleReplacements(wffC.args, aA, aB)
+		switch wffC.kind {
+		case Atomic:
+			ss = singleReplacements(wffC.args, aA, aB)
 
-		for _, s = range ss {
-			wffN = &WffTree{
-				kind: Atomic,
-				mop:  wffC.mop,
-				pv:   wffC.pv,
-				av:   wffC.av,
-				pred: wffC.pred,
-				args: s,
-				subL: DeepCopy(wffC.subL),
-				subR: DeepCopy(wffC.subR),
-				sup:  wffC.sup,
+			for _, s = range ss {
+				wffN = &Wff{
+					kind: Atomic,
+					mop:  wffC.mop,
+					pv:   wffC.pv,
+					av:   wffC.av,
+					pred: wffC.pred,
+					args: s,
+					subL: DeepCopy(wffC.subL),
+					subR: DeepCopy(wffC.subR),
+					sup:  wffC.sup,
+				}
+
+				wffN.h = hashWff(wffN)
+
+				wffsR = append(wffsR, wffN)
+			}
+		case Unary:
+			subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
+
+			for _, sub = range subLs {
+				wffN = NewCompositeWff(wffC.mop, sub, nil, 0, 0)
+
+				wffsR = append(wffsR, wffN)
+			}
+		case Binary:
+			subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
+
+			for _, sub = range subLs {
+				wffN = NewCompositeWff(wffC.mop, sub, wffC.subR, 0, 0)
+
+				wffsR = append(wffsR, wffN)
 			}
 
-			wffN.h = hashWff(wffN)
+			subRs = ReplaceEachArgOnce(wffC.subR, aA, aB)
 
-			wffsR = append(wffsR, wffN)
+			for _, sub = range subRs {
+				wffN = NewCompositeWff(wffC.mop, wffC.subL, sub, 0, 0)
+
+				wffsR = append(wffsR, wffN)
+			}
+		case Quantified:
+			subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
+
+			for _, sub = range subLs {
+				wffN = NewCompositeWff(wffC.mop, sub, nil, wffC.pv, wffC.av)
+
+				wffsR = append(wffsR, wffN)
+			}
+		default:
+			panic("Invalid WffTree")
 		}
-	case Unary:
-		subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
-
-		for _, sub = range subLs {
-			wffN = NewCompositeWff(wffC.mop, sub, nil, 0, 0)
-
-			wffsR = append(wffsR, wffN)
-		}
-	case Binary:
-		subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
-
-		for _, sub = range subLs {
-			wffN = NewCompositeWff(wffC.mop, sub, wffC.subR, 0, 0)
-
-			wffsR = append(wffsR, wffN)
-		}
-
-		subRs = ReplaceEachArgOnce(wffC.subR, aA, aB)
-
-		for _, sub = range subRs {
-			wffN = NewCompositeWff(wffC.mop, wffC.subL, sub, 0, 0)
-
-			wffsR = append(wffsR, wffN)
-		}
-	case Quantified:
-		subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
-
-		for _, sub = range subLs {
-			wffN = NewCompositeWff(wffC.mop, sub, nil, wffC.pv, wffC.av)
-
-			wffsR = append(wffsR, wffN)
-		}
-	default:
-		panic("Invalid WffTree")
 	}
 
 	return
 }
 
-func IsIdentical(wffA, wffB *WffTree) (is bool) {
-	is = wffA.h == wffB.h
-
-	return
-}
-
-func ReplaceWff(wff, wffA, wffB *WffTree) (wffR *WffTree) {
+func ReplaceWff(wff, wffA, wffB *Wff) (wffR *Wff) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -216,8 +217,8 @@ func ReplaceWff(wff, wffA, wffB *WffTree) (wffR *WffTree) {
 	}
 
 	if IsIdentical(wffR, wffA) {
-		wffR = &WffTree{
-			kind: Atomic,
+		wffR = &Wff{
+			kind: wffB.kind,
 			mop:  wffB.mop,
 			pv:   wffB.pv,
 			av:   wffB.av,
@@ -255,9 +256,95 @@ func ReplaceWff(wff, wffA, wffB *WffTree) (wffR *WffTree) {
 	return
 }
 
-func GetAllSubformulae(wff *WffTree) (swffs []*WffTree) {
+func ReplaceEachWffOnce(wff, wffA, wffB *Wff, barOps ...Symbol) (wffsR []*Wff) {
 	var (
-		swffsL, swffsR []*WffTree
+		has             bool
+		wffC, sub, wffN *Wff
+		subLs, subRs    []*Wff
+	)
+
+	if wff == nil {
+		panic("Invalid WffTree")
+	}
+
+	if wff.sup == nil {
+		wffC = DeepCopy(wff)
+	} else {
+		wffC = wff
+	}
+
+	if IsIdentical(wffC, wffA) {
+		wffN = DeepCopy(wffB)
+
+		wffsR = append(wffsR, wffN)
+	} else if has = slices.Contains(barOps, wff.mop); !has {
+		switch wffC.kind {
+		case Atomic:
+		case Unary:
+			if IsIdentical(wffC.subL, wffA) {
+				wffN = NewCompositeWff(wffC.mop, wffB, nil, 0, 0)
+
+				wffsR = append(wffsR, wffN)
+			}
+
+			subLs = ReplaceEachWffOnce(wffC.subL, wffA, wffB, barOps...)
+
+			for _, sub = range subLs {
+				wffN = NewCompositeWff(wffC.mop, sub, nil, 0, 0)
+
+				wffsR = append(wffsR, wffN)
+			}
+		case Binary:
+			if IsIdentical(wffC.subL, wffA) {
+				wffN = NewCompositeWff(wffC.mop, wffB, wffC.subR, 0, 0)
+
+				wffsR = append(wffsR, wffN)
+			}
+
+			subLs = ReplaceEachWffOnce(wffC.subL, wffA, wffB, barOps...)
+
+			for _, sub = range subLs {
+				wffN = NewCompositeWff(wffC.mop, sub, wffC.subR, 0, 0)
+
+				wffsR = append(wffsR, wffN)
+			}
+
+			if IsIdentical(wffC.subR, wffA) {
+				wffN = NewCompositeWff(wffC.mop, wffC.subL, wffB, 0, 0)
+
+				wffsR = append(wffsR, wffN)
+			}
+
+			subRs = ReplaceEachWffOnce(wffC.subR, wffA, wffB, barOps...)
+
+			for _, sub = range subRs {
+				wffN = NewCompositeWff(wffC.mop, wffC.subL, sub, 0, 0)
+
+				wffsR = append(wffsR, wffN)
+			}
+		case Quantified:
+			if IsIdentical(wffC.subL, wffA) {
+				wffN = NewCompositeWff(wffC.mop, wffB, nil, wffC.pv, wffC.av)
+
+				wffsR = append(wffsR, wffN)
+			}
+
+			subLs = ReplaceEachWffOnce(wffC.subL, wffA, wffB, barOps...)
+
+			for _, sub = range subLs {
+				wffN = NewCompositeWff(wffC.mop, sub, nil, wffC.pv, wffC.av)
+
+				wffsR = append(wffsR, wffN)
+			}
+		}
+	}
+
+	return
+}
+
+func GetAllSubformulae(wff *Wff) (swffs []*Wff) {
+	var (
+		swffsL, swffsR []*Wff
 	)
 
 	wff = DeepCopy(wff)
@@ -288,7 +375,7 @@ func GetAllSubformulae(wff *WffTree) (swffs []*WffTree) {
 	return
 }
 
-func Instantiate(wff *WffTree, pred Predicate, arg Argument) (wffI *WffTree) {
+func Instantiate(wff *Wff, pred Predicate, arg Argument) (wffI *Wff) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
@@ -309,8 +396,8 @@ func Instantiate(wff *WffTree, pred Predicate, arg Argument) (wffI *WffTree) {
 	return
 }
 
-func GeneralizePred(mop Symbol, wff *WffTree, pc, pv Predicate) (wffP *WffTree) {
-	var subL *WffTree
+func GeneralizePred(mop Symbol, wff *Wff, pc, pv Predicate) (wffP *Wff) {
+	var subL *Wff
 
 	if wff == nil {
 		panic("Invalid WffTree")
@@ -324,6 +411,8 @@ func GeneralizePred(mop Symbol, wff *WffTree, pc, pv Predicate) (wffP *WffTree) 
 		subL = ReplacePreds(wff, pc, pv)
 
 		wffP = NewCompositeWff(mop, subL, nil, pv, 0)
+	} else if pv != 0 {
+		wffP = NewCompositeWff(mop, wff, nil, pv, 0)
 	} else {
 		panic("Parameters cannot qualify for generalization.")
 	}
@@ -331,8 +420,8 @@ func GeneralizePred(mop Symbol, wff *WffTree, pc, pv Predicate) (wffP *WffTree) 
 	return
 }
 
-func GeneralizeArg(mop Symbol, wff *WffTree, arg, aVar Argument) (wffA *WffTree) {
-	var subL *WffTree
+func GeneralizeArg(mop Symbol, wff *Wff, ac, av Argument) (wffA *Wff) {
+	var subL *Wff
 
 	if wff == nil {
 		panic("Invalid WffTree")
@@ -342,12 +431,73 @@ func GeneralizeArg(mop Symbol, wff *WffTree, arg, aVar Argument) (wffA *WffTree)
 		panic("Invalid symbol for generalization.")
 	}
 
-	if arg != 0 && aVar != 0 {
-		subL = ReplaceArgs(wff, arg, aVar)
+	if ac != 0 && av != 0 {
+		subL = ReplaceArgs(wff, ac, av)
 
-		wffA = NewCompositeWff(mop, subL, nil, 0, aVar)
+		wffA = NewCompositeWff(mop, subL, nil, 0, av)
+	} else if av != 0 {
+		wffA = NewCompositeWff(mop, wff, nil, 0, av)
 	} else {
 		panic("Parameters cannot qualify for generalization.")
+	}
+
+	return
+}
+
+func GetAllInstantiations(wff *Wff, pcs []Predicate, acs []Argument) (wffsToWffsI map[*Wff][]*Wff) {
+	var (
+		pc    Predicate
+		ac    Argument
+		wffI  *Wff
+		wffsI []*Wff
+		tmp   map[*Wff][]*Wff
+	)
+
+	wffsToWffsI = map[*Wff][]*Wff{}
+
+	if HasOp(wff, Exists) || HasOp(wff, ForAll) {
+		switch wff.kind {
+		case Unary:
+			wffsToWffsI = GetAllInstantiations(wff.subL, pcs, acs)
+		case Binary:
+			wffsToWffsI = GetAllInstantiations(wff.subL, pcs, acs)
+
+			tmp = GetAllInstantiations(wff.subR, pcs, acs)
+
+			for wff, wffsI = range tmp {
+				wffsToWffsI[wff] = append(wffsToWffsI[wff], wffsI...)
+			}
+		case Quantified:
+			if !HasFreeVars(wff.subL) {
+				wffI = DeepCopy(wff.subL)
+
+				wffsToWffsI[wff] = append(wffsToWffsI[wff], wffI)
+			} else if wff.pv != 0 {
+				for _, pc = range pcs {
+					wffI = Instantiate(wff, pc, 0)
+
+					wffsToWffsI[wff] = append(wffsToWffsI[wff], wffI)
+				}
+			} else if wff.av != 0 {
+				for _, ac = range acs {
+					wffI = Instantiate(wff, 0, ac)
+
+					wffsToWffsI[wff] = append(wffsToWffsI[wff], wffI)
+				}
+			}
+
+			if HasOp(wff.subL, Exists) || HasOp(wff.subL, ForAll) {
+				for _, wffI = range wffsToWffsI[wff] {
+					tmp = GetAllInstantiations(wffI, pcs, acs)
+
+					for wff, wffsI = range tmp {
+						wffsToWffsI[wff] = append(wffsToWffsI[wff], wffsI...)
+					}
+				}
+			}
+		default:
+			panic("Invalid WffTree")
+		}
 	}
 
 	return

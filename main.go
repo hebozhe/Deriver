@@ -7,8 +7,8 @@ import (
 
 func main() {
 	var (
-		wffs chan *fmla.WffTree
-		wff  *fmla.WffTree
+		wffs chan *fmla.Wff
+		wff  *fmla.Wff
 		s    string
 	)
 

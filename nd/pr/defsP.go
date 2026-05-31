@@ -6,113 +6,707 @@ import (
 )
 
 type Line struct {
-	wff        *fmla.WffTree
+	wff        *fmla.Wff
 	rule       NDRule
 	j1, j2, j3 *Line
+
+	prf *Proof // The proof to which this line belongs.
+
+	ext bool // Whether the line has been extended.
 }
 
-type Proof struct {
-	wffG   *fmla.WffTree
-	purp   NDRule
-	isOpen bool
+func (ln *Line) GetWff() (wff *fmla.Wff) {
+	wff = fmla.DeepCopy(ln.wff)
 
-	lns []*Line
-
-	dom *Domain
-
-	hist map[LineHash]bool
-
-	prfsI []*Proof
-	prfO  *Proof
+	return
 }
 
-type LineInfo struct {
-	Ln *Line // The line, itself.
+func (ln *Line) GetRule() (rule NDRule) {
+	rule = ln.rule
 
-	// Information about the line:
-	Wff *fmla.WffTree
-
-	Rule       NDRule
-	J1, J2, J3 *Line
-
-	// Information about the wff on the line:
-	Mop        fmla.Symbol
-	SubL, SubR *fmla.WffTree
-	MopL, MopR fmla.Symbol // Used frequently for modal rules...
-
-	PV   fmla.Predicate
-	AV   fmla.Argument
-	Pred fmla.Predicate
-	Args []fmla.Argument
-
-	// Information about the proof where the line is:
-	WffG   *fmla.WffTree
-	Purp   NDRule
-	IsOpen bool
-
-	Prf   *Proof
-	PrfsI []*Proof
-	PrfO  *Proof
+	return
 }
 
-func getJustificationDependencies(ln *Line) (depsJ map[*Line]bool) {
+func (ln *Line) GetProof() (prf *Proof) {
+	prf = ln.prf
+
+	return
+}
+
+func (ln *Line) GetJustifications() (js []*Line) {
+	switch {
+	case ln.j3 != nil:
+		js = append(js, ln.j1, ln.j2, ln.j3)
+	case ln.j2 != nil:
+		js = append(js, ln.j1, ln.j2)
+	case ln.j1 != nil:
+		js = append(js, ln.j1)
+	}
+
+	return
+}
+
+func (ln *Line) GetJustificationsDependencies() (depsJ map[*Line]bool) {
 	var (
-		deps map[*Line]bool
-		lnJ  *Line
+		tmpJ map[*Line]bool
+		j    *Line
 	)
 
 	depsJ = map[*Line]bool{ln: true}
 
 	if ln.j1 != nil {
-		deps = getJustificationDependencies(ln.j1)
+		tmpJ = ln.j1.GetJustificationsDependencies()
 
-		for lnJ = range deps {
-			depsJ[lnJ] = true
+		for j = range tmpJ {
+			depsJ[j] = true
 		}
 	}
 
 	if ln.j2 != nil {
-		deps = getJustificationDependencies(ln.j2)
+		tmpJ = ln.j2.GetJustificationsDependencies()
 
-		for lnJ = range deps {
-			depsJ[lnJ] = true
+		for j = range tmpJ {
+			depsJ[j] = true
 		}
 	}
 
 	if ln.j3 != nil {
-		deps = getJustificationDependencies(ln.j3)
+		tmpJ = ln.j3.GetJustificationsDependencies()
 
-		for lnJ = range deps {
-			depsJ[lnJ] = true
+		for j = range tmpJ {
+			depsJ[j] = true
 		}
 	}
 
 	return
 }
 
-func NewLine(wff, wffG *fmla.WffTree, rule, purp NDRule, prfO *Proof, js ...*Line) (ln *Line, prfI *Proof) {
+func (ln *Line) GetProofDependencies() (depsP map[*Proof]bool) {
+	var (
+		tmpP map[*Proof]bool
+		prf  *Proof
+	)
+
+	depsP = map[*Proof]bool{ln.prf: true}
+
+	if ln.j1 != nil {
+		tmpP = ln.j1.GetProofDependencies()
+
+		for prf = range tmpP {
+			depsP[prf] = true
+		}
+	}
+
+	if ln.j2 != nil {
+		tmpP = ln.j2.GetProofDependencies()
+
+		for prf = range tmpP {
+			depsP[prf] = true
+		}
+	}
+
+	if ln.j3 != nil {
+		tmpP = ln.j3.GetProofDependencies()
+
+		for prf = range tmpP {
+			depsP[prf] = true
+		}
+	}
+
+	return
+}
+
+func (ln *Line) IsExtended() (is bool) {
+	is = ln.ext
+
+	return
+}
+
+func (ln *Line) SetExtended(ext bool) (is bool) {
+	ln.ext, is = ext, ext
+
+	return
+}
+
+type Proof struct {
+	wffG *fmla.Wff
+
+	purp NDRule
+	open bool
+
+	lns []*Line
+
+	prfsI []*Proof
+	prfO  *Proof
+
+	pvG fmla.Predicate // The goal predicate variable in a QL subproof.
+	avG fmla.Argument  // The goal argument variable in a QL subproof.
+	pcA fmla.Predicate // The fresh predicate variable in QL subproof.
+	acA fmla.Argument  // The fresh argument variable in QL subproof.
+
+	fpcs []fmla.Predicate // Fresh predicate constants.
+	facs []fmla.Argument  // Fresh argument constants.
+}
+
+func (prf *Proof) GetWffG() (wffG *fmla.Wff) {
+	wffG = fmla.DeepCopy(prf.wffG)
+
+	return
+}
+
+func (prf *Proof) GetPurp() (purp NDRule) {
+	purp = prf.purp
+
+	return
+}
+
+func (prf *Proof) IsOpen() (is bool) {
+	is = prf.open
+
+	return
+}
+
+func (prf *Proof) GetLines() (lns []*Line) {
+	var (
+		dex int
+	)
+
+	// Refresh the line proof pointers, in case any are missing.
+	for dex = range prf.lns {
+		prf.lns[dex].prf = prf
+	}
+
+	lns = append(lns, prf.lns...)
+
+	return
+}
+
+func (prf *Proof) GetLineAtIndex(dex int) (ln *Line) {
+	var (
+		lenL int
+	)
+
+	if lenL = len(prf.lns); dex < lenL {
+		ln = prf.lns[dex]
+	}
+
+	return
+}
+
+func (prf *Proof) GetWffAtLineIndex(dex int) (wff *fmla.Wff) {
+	var (
+		ln *Line
+	)
+
+	if ln = prf.GetLineAtIndex(dex); ln != nil {
+		wff = ln.GetWff()
+	}
+
+	return
+}
+
+func (prf *Proof) GetModalDepth() (md int) {
+	if prf.purp == BoxIntro || prf.purp == DiamondElim {
+		md = 1
+	}
+
+	if prf.prfO != nil {
+		md += prf.prfO.GetModalDepth()
+	}
+
+	return
+}
+
+func (prf *Proof) GetModalDistance(toPrf *Proof) (md int) {
+	var (
+		mdA, mdB int
+	)
+
+	if prf == toPrf {
+		md = 0
+	} else if prf.IsOuter(toPrf) {
+		mdA, mdB = prf.GetModalDepth(), toPrf.GetModalDepth()
+
+		md = mdB - mdA
+	} else {
+		md = -1
+	}
+
+	return
+}
+
+func (prf *Proof) GetInnerProofs(self bool) (prfsI []*Proof) {
+	var (
+		prfI   *Proof
+		dex    int
+		prfsII []*Proof
+	)
+
+	if self {
+		prfsI = append(prfsI, prf)
+	}
+
+	prfsI = append(prfsI, prf.prfsI...)
+
+	for dex, prfI = range prfsI {
+		prfsII = prfI.GetInnerProofs(false)
+
+		prfsI = slices.Insert(prfsI, dex, prfsII...)
+	}
+
+	return
+}
+
+func (prf *Proof) GetInnerProofsAtModalDistance(self bool, md int) (prfsI []*Proof) {
+	var (
+		delFunc func(prfI *Proof) (nix bool)
+	)
+
+	prfsI = prf.GetInnerProofs(self)
+
+	delFunc = func(prfI *Proof) (nix bool) {
+		nix = prf.GetModalDistance(prfI) != md
+
+		return
+	}
+
+	prfsI = slices.DeleteFunc(prfsI, delFunc)
+
+	return
+}
+
+func (prf *Proof) GetOuterProof() (prfO *Proof) {
+	prfO = prf.prfO
+
+	return
+}
+
+func (prf *Proof) GetOuterProofsAtModalDistance(self bool, md int) (prfsO []*Proof) {
+	var (
+		delFunc func(prfO *Proof) (nix bool)
+	)
+
+	prfsO = prf.GetOuterProofs(self)
+
+	delFunc = func(prfO *Proof) (nix bool) {
+		nix = prfO.GetModalDistance(prf) != md
+
+		return
+	}
+
+	prfsO = slices.DeleteFunc(prfsO, delFunc)
+
+	return
+}
+
+func (prf *Proof) GetQLInnerProofPredicates() (pcA, pvG fmla.Predicate, ok bool) {
+	pcA, pvG = prf.pcA, prf.pvG
+
+	ok = pcA != 0 && pvG != 0
+
+	return
+}
+
+func (prf *Proof) GetQLInnerProofArguments() (acA, avG fmla.Argument, ok bool) {
+	acA, avG = prf.acA, prf.avG
+
+	ok = acA != 0 && avG != 0
+
+	return
+}
+
+func (prf *Proof) SetQLInnerProofPredicates(pcA, pvG fmla.Predicate) (ok bool) {
+	if ok = slices.Contains(fmla.PredConsts, pcA) && slices.Contains(fmla.PredVars, pvG); ok {
+		prf.pcA, prf.pvG = pcA, pvG
+	}
+
+	return
+}
+
+func (prf *Proof) SetQLInnerProofArguments(acA, avG fmla.Argument) (ok bool) {
+	if ok = slices.Contains(fmla.ArgConsts, acA) && slices.Contains(fmla.ArgVars, avG); ok {
+		prf.acA, prf.avG = acA, avG
+	}
+
+	return
+}
+
+func reduceFreshConstants(prf *Proof, wffs ...*fmla.Wff) (fpcs []fmla.Predicate, facs []fmla.Argument) {
+	var (
+		wff *fmla.Wff
+		pcs []fmla.Predicate
+		acs []fmla.Argument
+		pc  fmla.Predicate
+		ac  fmla.Argument
+		dex int
+	)
+
+	fpcs, facs = append(fpcs, prf.fpcs...), append(facs, prf.facs...)
+
+	for _, wff = range wffs {
+		pcs, acs = fmla.GetConstants(wff)
+
+		for _, pc = range pcs {
+			if dex = slices.Index(fpcs, pc); -1 < dex {
+				fpcs = slices.Delete(fpcs, dex, dex+1)
+			}
+		}
+
+		for _, ac = range acs {
+			if dex = slices.Index(facs, ac); -1 < dex {
+				facs = slices.Delete(facs, dex, dex+1)
+			}
+		}
+	}
+
+	return
+}
+
+func (prf *Proof) GetOuterProofs(self bool) (prfsO []*Proof) {
+	var (
+		prfO *Proof
+	)
+
+	prfO = prf.prfO
+
+	for prfO != nil {
+		prfsO = append(prfsO, prfO)
+
+		prfO = prfO.prfO
+	}
+
+	slices.Reverse(prfsO) // Sort from outer to inner.
+
+	if self {
+		prfsO = append(prfsO, prf) // The proof, itself, is the innermost.
+	}
+
+	return
+}
+
+func (prf *Proof) GetFreshPredicate() (pc fmla.Predicate, ok bool) {
+	var (
+		lenC int
+	)
+
+	if lenC = len(prf.fpcs); 0 < lenC {
+		pc, ok = prf.fpcs[0], true
+	}
+
+	return
+}
+
+func (prf *Proof) GetFreshArgument() (ac fmla.Argument, ok bool) {
+	var (
+		lenC int
+	)
+
+	if lenC = len(prf.facs); 0 < lenC {
+		ac, ok = prf.facs[0], true
+	}
+
+	return
+}
+
+func (prf *Proof) GetUsedPredicates() (pcs []fmla.Predicate) {
+	var (
+		pc  fmla.Predicate
+		dex int
+	)
+
+	pcs = append(pcs, fmla.PredConsts...)
+
+	for _, pc = range prf.fpcs {
+		if dex = slices.Index(pcs, pc); -1 < dex {
+			pcs = slices.Delete(pcs, dex, dex+1)
+		}
+	}
+
+	return
+}
+
+func (prf *Proof) GetUsedArguments() (acs []fmla.Argument) {
+	var (
+		fac fmla.Argument
+		dex int
+	)
+
+	acs = append(acs, fmla.ArgConsts...)
+
+	for _, fac = range prf.facs {
+		if dex = slices.Index(acs, fac); -1 < dex {
+			acs = slices.Delete(acs, dex, dex+1)
+		}
+	}
+
+	return
+}
+
+func (prf *Proof) GetAllProofs() (prfs []*Proof) {
+	var (
+		prfsI []*Proof
+	)
+
+	prfs = prf.GetOuterProofs(true)
+
+	prfsI = prf.GetInnerProofs(false)
+
+	prfs = append(prfs, prfsI...)
+
+	return
+}
+
+func (prf *Proof) HasWffInLines(wff *fmla.Wff) (lnW *Line, has bool) {
+	var (
+		ln *Line
+	)
+
+	for _, ln = range prf.lns {
+		if has = fmla.IsIdentical(ln.wff, wff); has {
+			lnW = ln
+
+			break
+		}
+	}
+
+	return
+}
+
+func (prf *Proof) IsOuter(toPrf *Proof) (is bool) {
+	switch {
+	case prf == toPrf.prfO:
+		is = true
+	case toPrf.prfO != nil:
+		is = prf.IsOuter(toPrf.prfO)
+	}
+
+	return
+}
+
+func (prf *Proof) IsReachable(byPrf *Proof) (prfO, prfI *Proof, is bool) {
+	switch {
+	case prf == byPrf:
+		prfO, prfI, is = prf, prf, true
+	case prf.IsOuter(byPrf):
+		prfO, prfI, is = prf, byPrf, true
+	case byPrf.IsOuter(prf):
+		prfO, prfI, is = byPrf, prf, true
+	}
+
+	return
+}
+
+func (prf *Proof) GetProofDepth() (pd int) {
+	if prf.prfO != nil {
+		pd = 1 + prf.prfO.GetProofDepth()
+	}
+
+	return
+}
+
+func (prf *Proof) GetProofDistance(toPrf *Proof) (pd int) {
+	var (
+		pdA, pdB int
+	)
+
+	if prf == toPrf {
+		pd = 0
+	} else if prf.IsOuter(toPrf) {
+		pdA, pdB = prf.GetProofDepth(), toPrf.GetProofDepth()
+
+		pd = pdB - pdA
+	} else {
+		pd = -1
+	}
+
+	return
+}
+
+func (prf *Proof) CloseProof() (tot int) {
+	var (
+		prfI *Proof
+		ln   *Line
+	)
+
+	if prf.open {
+		prf.open = false
+
+		for _, ln = range prf.lns {
+			ln.ext = true
+		}
+
+		tot = 1
+	}
+
+	for _, prfI = range prf.prfsI {
+		tot += prfI.CloseProof()
+	}
+
+	return
+}
+
+func (prf *Proof) CountLines() (tot int) {
+	tot = len(prf.lns)
+
+	return
+}
+
+func (prf *Proof) CountAllOpenLines() (tot int) {
+	var (
+		prfs []*Proof
+	)
+
+	prfs = prf.GetAllProofs()
+
+	for _, prf = range prfs {
+		if prf.open {
+			tot += prf.CountLines()
+		}
+	}
+
+	return
+}
+
+func (prf *Proof) MinimizeProofLines() (prfU *Proof) {
+	var (
+		delLinesFunc func(lnA *Line) (nix bool)
+		lnW          *Line
+		dex          int
+		has          bool
+		depsJ        map[*Line]bool
+	)
+
+	delLinesFunc = func(lnA *Line) (nix bool) {
+		nix = !depsJ[lnA] && lnA.rule != Assumption
+
+		return
+	}
+
+	if lnW, has = prf.HasWffInLines(prf.wffG); has {
+		depsJ = lnW.GetJustificationsDependencies()
+
+		prf.lns = slices.DeleteFunc(prf.lns, delLinesFunc)
+	}
+
+	for dex = range prf.prfsI {
+		prf.prfsI[dex] = prf.prfsI[dex].MinimizeProofLines()
+	}
+
+	prfU = prf
+
+	return
+}
+
+func (prf *Proof) MinimizeInnerProofs() (prfU *Proof) {
+	var (
+		delRedundantProofFunc func(prfA *Proof) (nix bool)
+		lnW                   *Line
+		has                   bool
+		depsP                 map[*Proof]bool
+		dex                   int
+	)
+
+	delRedundantProofFunc = func(prfA *Proof) (nix bool) {
+		nix = !depsP[prfA]
+
+		return
+	}
+
+	if lnW, has = prf.HasWffInLines(prf.wffG); has {
+		depsP = lnW.GetProofDependencies()
+
+		prf.prfsI = slices.DeleteFunc(prf.prfsI, delRedundantProofFunc)
+	}
+
+	// Recurse into remaining inner proofs.
+	for dex = range prf.prfsI {
+		prf.prfsI[dex] = prf.prfsI[dex].MinimizeInnerProofs()
+	}
+
+	prfU = prf
+
+	return
+}
+
+func (prf *Proof) MinimizeProof() (prfU *Proof) {
+	prf = prf.MinimizeProofLines()
+
+	prf = prf.MinimizeInnerProofs()
+
+	prfU = prf
+
+	return
+}
+
+func (prf *Proof) FlattenProof() (lns []*Line) {
+	var (
+		prfI      *Proof
+		lnsI      []*Line
+		lenI, dex int
+		ln        *Line
+	)
+
+	lns = prf.GetLines()
+
+FLATTENPROOF_OUTER:
+	for _, prfI = range prf.prfsI {
+		lnsI = prfI.FlattenProof()
+
+		if lenI = len(lnsI); lenI == 0 {
+			continue
+		}
+
+		for dex, ln = range lns {
+			if !IsDischargeRule(ln.rule) {
+				continue
+			}
+
+			switch {
+			case ln.j3 != nil: // ExistsElim or DiamondElim.
+				if lnsI[0] == ln.j2 {
+					lns = slices.Insert(lns, dex, lnsI...)
+
+					continue FLATTENPROOF_OUTER
+				}
+			case ln.j2 != nil: // ToIntro, NegIntro, ForAllIntro, or BoxIntro.
+				if lnsI[0] == ln.j1 {
+					lns = slices.Insert(lns, dex, lnsI...)
+
+					continue FLATTENPROOF_OUTER
+				}
+			}
+		}
+
+		// Append the lnsI to the end of lns if they're not set elsewhere.
+		lns = append(lns, lnsI...)
+	}
+
+	return
+}
+
+func (prf *Proof) NewLine(wff *fmla.Wff, rule, purp NDRule, js ...*Line) (ln *Line) {
 	var (
 		lenJ int
 	)
 
+	if purp == 0 {
+		purp = prf.purp
+	}
+
 	if lenJ = len(js); !isJCountCorrect(rule, purp, lenJ) {
-		panic("The number of justifications is wrong.")
-	}
-
-	if rule == Assumption && wffG == nil {
-		panic("Assumption lines must have a wffG.")
-	} else if rule != Assumption && wffG != nil {
-		panic("Non-assumption lines must not have a wffG.")
-	}
-
-	if rule == Assumption && prfO == nil {
-		panic("Assumption lines must have a prfO.")
+		panic("Incorrect number of justification lines.")
 	}
 
 	ln = &Line{
-		wff: fmla.DeepCopy(wff),
-
+		wff:  fmla.DeepCopy(wff),
 		rule: rule,
+		// The justifications are worked out below:
+		j1: nil,
+		j2: nil,
+		j3: nil,
+		// The proof to which the line belongs is decided after it's inserted.
+		prf: nil,
+		ext: false,
 	}
 
 	switch lenJ {
@@ -122,184 +716,147 @@ func NewLine(wff, wffG *fmla.WffTree, rule, purp NDRule, prfO *Proof, js ...*Lin
 		ln.j1, ln.j2 = js[0], js[1]
 	case 1:
 		ln.j1 = js[0]
+	}
+
+	return
+}
+
+func (prf *Proof) WffIsRedundant(wff *fmla.Wff) (is bool) {
+	var (
+		prfsO []*Proof
+		prfO  *Proof
+	)
+
+	prfsO = prf.GetOuterProofsAtModalDistance(true, 0)
+
+	for _, prfO = range prfsO {
+		if _, is = prfO.HasWffInLines(wff); is {
+			return
+		}
+	}
+
+	return
+}
+
+func (prf *Proof) LineIsRedundant(ln *Line) (is bool) {
+	switch ln.rule {
+	case Reiteration:
+		is = slices.ContainsFunc(prf.lns, func(lnA *Line) (has bool) {
+			has = fmla.IsIdentical(lnA.wff, ln.wff) && lnA.rule == ln.rule
+
+			return
+		})
 	default:
+		is = slices.ContainsFunc(prf.lns, func(lnA *Line) (has bool) {
+			has = fmla.IsIdentical(lnA.wff, ln.wff)
+
+			return
+		})
 	}
 
-	if rule == Assumption {
-		prfI = &Proof{
-			wffG:   fmla.DeepCopy(wffG),
-			purp:   purp,
-			isOpen: true,
-
-			lns: []*Line{ln},
-
-			dom: newDomain().updateDomain(wff, wffG),
-
-			hist: map[LineHash]bool{},
-
-			prfsI: []*Proof{},
-			prfO:  prfO,
-		}
-
-		switch purp {
-		case ForAllIntro, ExistsElim:
-			prfI.dom.apc, prfI.dom.aac = prfI.dom.findUniqueConstants(prfI.prfO.dom, wff, wffG)
-		default:
-			prfI.dom.apc, prfI.dom.aac = prfI.prfO.dom.apc, prfI.prfO.dom.aac
-		}
+	if !is && prf.prfO != nil && prf.prfO.GetModalDistance(prf) == 0 {
+		is = prf.prfO.LineIsRedundant(ln)
 	}
 
 	return
 }
 
-func (prf *Proof) GetWffG() (wffG *fmla.WffTree) {
-	wffG = fmla.DeepCopy(prf.wffG)
-
-	return
-}
-
-func (prf *Proof) GetPurpose() (purp NDRule) {
-	purp = prf.purp
-
-	return
-}
-
-func (prf *Proof) IsOpen() (is bool) {
-	is = prf.isOpen
-
-	return
-}
-
-func (prf *Proof) InsertLine(ln *Line) (tot int) {
-	var (
-		lh LineHash
-	)
-
-	lh = prf.hashLine(ln)
-
-	if !prf.hist[lh] {
-		prf.lns = append(prf.lns, ln)
-
-		prf.hist[lh] = true
-
-		tot = 1
-	}
-
-	return
-}
-
-func (prf *Proof) InsertInnerProof(prfI *Proof) (tot int) {
-	var (
-		lenL int
-		lh   LineHash
-	)
-
-	if lenL = len(prfI.lns); lenL == 0 {
-		panic("Inner proofs cannot be empty.")
-	} else if prfI.lns[0].rule != Assumption {
-		panic("Inner proofs must begin with an assumption.")
-	}
-
-	if prfI.wffG == nil {
-		panic("Inner proofs must have a wffG.")
-	}
-
-	lh = prfI.hashLine(prfI.lns[0])
-
-	if !prfI.prfO.hist[lh] {
-		prf.prfsI = append(prf.prfsI, prfI)
-
-		prfI.prfO.hist[lh] = true
-
-		prfI.hist[lh] = true
-
-		tot = 1
-	}
-
-	return
-}
-
-func (prf *Proof) GetInfo(ln *Line) (li *LineInfo) {
-	var (
-		has bool
-	)
-
-	if has = slices.Contains(prf.lns, ln); !has {
-		panic("Cannot get info for line not in the proof.")
-	}
-
-	li = &LineInfo{
-		// Line information:
-		Ln: ln,
-
-		Wff: fmla.DeepCopy(ln.wff),
-
-		Rule: ln.rule,
-		J1:   ln.j1,
-		J2:   ln.j2,
-		J3:   ln.j3,
-
-		// Wff information:
-		Mop: fmla.GetWffMop(ln.wff),
-
-		SubL: nil, // Filled in below.
-		SubR: nil, // Filled in below.
-
-		MopL: 0, // Filled in below.
-		MopR: 0, // Filled in below.
-
-		PV:   0,                 // Filled in below.
-		AV:   0,                 // Filled in below.
-		Pred: 0,                 // Filled in below.
-		Args: []fmla.Argument{}, // Filled in below.
-
-		// Proof information:
-		WffG:   fmla.DeepCopy(prf.wffG),
-		Purp:   prf.purp,
-		IsOpen: prf.isOpen,
-
-		Prf:   prf,
-		PrfsI: append([]*Proof{}, prf.prfsI...),
-		PrfO:  prf.prfO,
-	}
-
-	li.SubL, li.SubR = fmla.GetWffSubformulae(li.Wff)
-
-	if li.SubL != nil {
-		li.MopL = fmla.GetWffMop(li.SubL)
-	}
-
-	if li.SubR != nil {
-		li.MopR = fmla.GetWffMop(li.SubR)
-	}
-
-	if li.Mop == fmla.Exists || li.Mop == fmla.ForAll {
-		li.PV, li.AV = fmla.GetWffVars(li.Wff)
-	}
-
-	if li.Mop == fmla.NoSymbol {
-		li.Pred, li.Args, _ = fmla.GetWffPredAndArgs(li.Wff)
-	}
-
-	return
-}
-
-func (prf *Proof) GetDepth() (d int) {
-	if prf.prfO != nil {
-		d = 1 + prf.prfO.GetDepth()
-	}
-
-	return
-}
-
-func (prf *Proof) IsWffGMet() (li *LineInfo, met bool) {
+func (prf *Proof) InsertLines(lns ...*Line) (tot int) {
 	var (
 		ln *Line
 	)
 
-	for _, ln = range prf.lns {
-		if met = fmla.IsIdentical(prf.wffG, ln.wff); met {
-			li = prf.GetInfo(ln)
+	for _, ln = range lns {
+		if ln == nil || prf.LineIsRedundant(ln) || fmla.HasFreeVars(ln.wff) {
+			continue
+		}
+
+		prf.lns = append(prf.lns, ln)
+
+		prf.fpcs, prf.facs = reduceFreshConstants(prf, ln.wff)
+
+		tot += 1
+	}
+
+	return
+}
+
+func (prf *Proof) InsertNewLine(wff *fmla.Wff, rule, purp NDRule, js ...*Line) (tot int) {
+	var (
+		ln *Line
+	)
+
+	ln = prf.NewLine(wff, rule, purp, js...)
+
+	tot = prf.InsertLines(ln)
+
+	return
+}
+
+func (prf *Proof) IsRedundant() (is bool) {
+	var (
+		wff, bot *fmla.Wff
+		prfsO    []*Proof
+		prfO     *Proof
+	)
+
+	// Check if the succesful result would be redundant.
+	switch prf.purp {
+	case ToIntro:
+		wff = fmla.NewBinaryWff(fmla.To, prf.lns[0].wff, prf.wffG)
+
+		is = prf.prfO.WffIsRedundant(wff)
+	case NegIntro:
+		wff = fmla.NewUnaryWff(fmla.Neg, prf.lns[0].wff)
+
+		is = prf.prfO.WffIsRedundant(wff)
+	case ForAllIntro:
+		if prf.pvG != 0 {
+			wff = fmla.GeneralizePred(fmla.ForAll, prf.wffG, prf.pcA, prf.pvG)
+		} else if prf.avG != 0 {
+			wff = fmla.GeneralizeArg(fmla.ForAll, prf.wffG, prf.acA, prf.avG)
+		} else {
+			panic("Illegal proof state: Neither variables are generalizable.")
+		}
+
+		is = prf.prfO.WffIsRedundant(wff)
+	case ExistsElim:
+		is = prf.prfO.WffIsRedundant(prf.wffG)
+	case BoxIntro:
+		wff = fmla.NewUnaryWff(fmla.Box, prf.lns[0].wff)
+
+		is = prf.prfO.WffIsRedundant(wff)
+	case DiamondElim:
+		if bot = fmla.NewAtomicWff(fmla.Bot); fmla.IsIdentical(prf.wffG, bot) {
+			wff = fmla.NewUnaryWff(fmla.Diamond, prf.lns[0].wff)
+			wff = fmla.NewUnaryWff(fmla.Neg, wff)
+		} else {
+			wff = fmla.NewUnaryWff(fmla.Diamond, prf.wffG)
+		}
+
+		is = prf.prfO.WffIsRedundant(wff)
+	default:
+		panic("Invalid proof purpose.")
+	}
+
+	if !is {
+		prfsO = prf.GetOuterProofs(false)
+		prfsO = append(prfsO, prf.prfO.prfsI...)
+
+		for _, prfO = range prfsO {
+			if prfO.purp != prf.purp {
+				continue
+			}
+
+			if !fmla.IsIdentical(prfO.lns[0].wff, prf.lns[0].wff) {
+				continue
+			}
+
+			if !fmla.IsIdentical(prfO.wffG, prf.wffG) {
+				continue
+			}
+
+			is = true
 
 			break
 		}
@@ -308,507 +865,99 @@ func (prf *Proof) IsWffGMet() (li *LineInfo, met bool) {
 	return
 }
 
-func (prf *Proof) GetLocalLines() (lis []*LineInfo, lenL int) {
-	var (
-		ln *Line
-		li *LineInfo
-	)
+func (prf *Proof) NewInnerProof(wffG *fmla.Wff, purp NDRule, ln0 *Line) (prfI *Proof) {
+	prfI = &Proof{
+		wffG: fmla.DeepCopy(wffG),
+		purp: purp,
+		open: true,
 
-	for _, ln = range prf.lns {
-		li = prf.GetInfo(ln)
+		lns: []*Line{},
 
-		lis = append(lis, li)
+		prfsI: []*Proof{},
+		prfO:  prf,
+
+		fpcs: append([]fmla.Predicate{}, prf.fpcs...),
+		facs: append([]fmla.Argument{}, prf.facs...),
 	}
 
-	lenL = len(lis)
-
-	return
-}
-
-func (prf *Proof) GetLegalLines() (lis []*LineInfo, lenL int) {
-	var (
-		prfO       *Proof
-		li         *LineInfo
-		lisO, lisP []*LineInfo
-		pv, apc    fmla.Predicate
-		av, aac    fmla.Argument
-	)
-
-	if prf.isOpen {
-		switch prf.purp {
-		case ExistsElim:
-			lis, _ = prf.GetLocalLines()
-
-			pv, av = fmla.GetWffVars(lis[0].J1.wff)
-
-			prfO = prf.prfO
-
-			apc, aac = prf.GetArbitraryConstants()
-
-			for prfO != nil && prfO.isOpen {
-				lisO, _ = prfO.GetLocalLines()
-
-				for _, li = range lisO {
-					if pv != 0 && fmla.HasPred(li.Wff, apc) {
-						continue
-					}
-
-					if av != 0 && fmla.HasArg(li.Wff, aac) {
-						continue
-					}
-
-					lis = append(lis, li)
-				}
-
-				prfO = prfO.prfO
-			}
-		case BoxIntro, DiamondElim:
-			lis, _ = prf.GetLocalLines()
-
-			prfO = prf.prfO
-
-			for prfO != nil && prfO.isOpen {
-				lisO, _ = prfO.GetLocalLines()
-
-				for _, li = range lisO {
-					if li.Mop != fmla.Box && (li.Mop != fmla.Neg || li.MopL != fmla.Diamond) {
-						continue
-					}
-
-					lis = append(lis, li)
-				}
-
-				if prfO.purp == BoxIntro || prfO.purp == DiamondElim {
-					break
-				}
-
-				prfO = prfO.prfO
-			}
-		default:
-			prfO = prf.prfO
-
-			for prfO != nil && prfO.isOpen {
-				lisO, _ = prfO.GetLocalLines()
-
-				lis = append(lisO, lis...)
-
-				prfO = prfO.prfO
-			}
-		}
+	if ln0.rule != Assumption {
+		panic("The first line of an inner proof must be an assumption.")
 	}
 
-	lisP, _ = prf.GetLocalLines()
+	prfI.lns = append(prfI.lns, ln0)
 
-	lis = append(lis, lisP...)
+	switch prfI.purp {
+	case ForAllIntro:
+		prfI.fpcs, prfI.facs = reduceFreshConstants(prfI, ln0.wff, prfI.wffG)
+	case BoxIntro, DiamondElim:
+		prfI.fpcs = append([]fmla.Predicate{}, fmla.PredConsts...)
+		prfI.facs = append([]fmla.Argument{}, fmla.ArgConsts...)
 
-	lenL = len(lis)
-
-	return
-}
-
-func (prf *Proof) GetLegalSubformulae(op fmla.Symbol) (wffs []*fmla.WffTree, lenW int) {
-	var (
-		lis  []*LineInfo
-		li   *LineInfo
-		subs []*fmla.WffTree
-	)
-
-	lis, _ = prf.GetLegalLines()
-	lis = slices.DeleteFunc(lis, func(li *LineInfo) (nix bool) {
-		nix = li.Rule != Premise && li.Rule != Assumption && !fmla.HasOp(li.Wff, op)
-
-		return
-	})
-
-	for _, li = range lis {
-		subs = fmla.GetAllSubformulae(li.Wff)
-		subs = slices.DeleteFunc(subs, func(wff *fmla.WffTree) (nix bool) {
-			nix = fmla.GetWffMop(wff) != op
-
-			return
-		})
-
-		wffs = append(wffs, subs...)
-
-		if li.WffG != nil {
-			subs = fmla.GetAllSubformulae(li.WffG)
-			subs = slices.DeleteFunc(subs, func(wff *fmla.WffTree) (nix bool) {
-				nix = fmla.GetWffMop(wff) != op
-
-				return
-			})
-
-			wffs = append(wffs, subs...)
-		}
-	}
-
-	lenW = len(wffs)
-
-	return
-}
-
-func (prf *Proof) GetFirstLine() (li *LineInfo) {
-	li = prf.GetInfo(prf.lns[0])
-
-	return
-}
-
-func (prf *Proof) GetOutermostProof() (prfO *Proof) {
-	if prf.prfO == nil {
-		prfO = prf
-	} else {
-		prfO = prf.prfO.GetOutermostProof()
+		prfI.fpcs, prfI.facs = reduceFreshConstants(prfI, ln0.wff)
+	default:
+		prfI.fpcs, prfI.facs = reduceFreshConstants(prfI, ln0.wff)
 	}
 
 	return
 }
 
-func (prf *Proof) GetInnerProofs(open bool) (prfsI []*Proof) {
-	var (
-		prfI   *Proof
-		prfsII []*Proof
-	)
-
-	for _, prfI = range prf.prfsI {
-		if open && !prfI.isOpen {
-			continue
-		}
-
-		prfsI = append(prfsI, prfI)
-
-		prfsII = prfI.GetInnerProofs(open)
-
-		prfsI = append(prfsI, prfsII...)
-	}
-
-	return
-}
-
-func (prf *Proof) GetInnermostProofs(open bool) (prfsI []*Proof) {
-	var (
-		prfs          []*Proof
-		prfI          *Proof
-		lenI          int
-		depthToProofs map[int][]*Proof
-		d, maxD       int
-	)
-
-	prfs = prf.GetInnerProofs(open)
-
-	if open {
-		depthToProofs = map[int][]*Proof{}
-
-		for _, prfI = range prfs {
-			if !prfI.isOpen {
-				continue
-			}
-
-			d = prfI.GetDepth()
-
-			depthToProofs[d] = append(depthToProofs[d], prfI)
-		}
-
-		for d = range depthToProofs {
-			if maxD < d {
-				maxD = d
-			}
-		}
-
-		if maxD == 0 && prf.isOpen {
-			prfsI = []*Proof{prf}
-		} else {
-			prfsI = depthToProofs[maxD]
-		}
-	} else {
-		for _, prfI = range prfs {
-			if lenI = len(prfI.prfsI); 0 < lenI {
-				continue
-			}
-
-			prfsI = append(prfsI, prfI)
-		}
-
-		if lenI = len(prfsI); lenI == 0 {
-			prfI = prf.GetOutermostProof()
-
-			prfsI = append(prfsI, prfI)
-		}
-	}
-
-	return
-}
-
-func (prf *Proof) GetLocalConstants() (pcs []fmla.Predicate, acs []fmla.Argument, apc fmla.Predicate, aac fmla.Argument) {
-	var (
-		pc fmla.Predicate
-		ac fmla.Argument
-	)
-
-	for _, pc = range fmla.PredConsts {
-		if prf.dom.pcs[pc] {
-			pcs = append(pcs, pc)
-		} else if apc == 0 {
-			apc = pc
-		}
-	}
-
-	for _, ac = range fmla.ArgConsts {
-		if prf.dom.acs[ac] {
-			acs = append(acs, ac)
-		} else if aac == 0 {
-			aac = ac
-		}
-	}
-
-	pcs, acs = fmla.RemoveRedundantEntries(pcs, acs)
-
-	return
-}
-
-func (prf *Proof) GetLegalConstants() (pcs []fmla.Predicate, acs []fmla.Argument, apc fmla.Predicate, aac fmla.Argument) {
-	var (
-		prfO *Proof
-		pcsO []fmla.Predicate
-		acsO []fmla.Argument
-	)
-
-	pcs, acs, apc, aac = prf.GetLocalConstants()
-
-	prfO = prf.prfO
-
-	for prfO != nil {
-		pcsO, acsO, _, _ = prfO.GetLocalConstants()
-
-		pcs = append(pcs, pcsO...)
-		acs = append(acs, acsO...)
-
-		prfO = prfO.prfO
-	}
-
-	pcs, acs = fmla.RemoveRedundantEntries(pcs, acs)
-
-	return
-}
-
-func (prf *Proof) GetLocalVariables() (pvs []fmla.Predicate, avs []fmla.Argument) {
-	var (
-		pv fmla.Predicate
-		av fmla.Argument
-	)
-
-	for _, pv = range fmla.PredVars {
-		if prf.dom.pvs[pv] {
-			pvs = append(pvs, pv)
-		}
-	}
-
-	for _, av = range fmla.ArgVars {
-		if prf.dom.avs[av] {
-			avs = append(avs, av)
-		}
-	}
-
-	pvs, avs = fmla.RemoveRedundantEntries(pvs, avs)
-
-	return
-}
-
-func (prf *Proof) GetLegalVariables() (pvs []fmla.Predicate, avs []fmla.Argument) {
-	var (
-		prfO *Proof
-		pvsO []fmla.Predicate
-		avsO []fmla.Argument
-	)
-
-	pvs, avs = prf.GetLocalVariables()
-
-	prfO = prf.prfO
-
-	for prfO != nil {
-		pvsO, avsO = prfO.GetLocalVariables()
-
-		pvs = append(pvs, pvsO...)
-		avs = append(avs, avsO...)
-
-		prfO = prfO.prfO
-	}
-
-	pvs, avs = fmla.RemoveRedundantEntries(pvs, avs)
-
-	return
-}
-
-func (prf *Proof) GetArbitraryConstants() (apc fmla.Predicate, aac fmla.Argument) {
-	apc, aac = prf.dom.apc, prf.dom.aac
-
-	return
-}
-
-func (prf *Proof) CloseProof() (ok bool) {
+func (prf *Proof) InsertInnerProofs(prfsI ...*Proof) (tot int) {
 	var (
 		prfI *Proof
 	)
 
-	prf.isOpen = false
-
-	for _, prfI = range prf.prfsI {
-		_ = prfI.CloseProof()
-	}
-
-	return
-}
-
-func (prf *Proof) FindJustfyingInnerProof(ln *Line) (prfI *Proof, ok bool) {
-	if ok = isDischargeRule(ln.rule); ok {
-		switch ln.rule {
-		case ToIntro, NegIntro, ForAllIntro, BoxIntro: // Two-line justifications.
-			for _, prfI = range prf.prfsI {
-				if prfI.lns[0] == ln.j1 {
-					break
-				}
-			}
-		case ExistsElim, DiamondElim: // Three-line justifications.
-			for _, prfI = range prf.prfsI {
-				if prfI.lns[0] == ln.j2 {
-					break
-				}
-			}
-		default:
-			panic("Unknown discharge rule.")
+	for _, prfI = range prfsI {
+		if prfI == nil {
+			continue
 		}
-	}
 
-	ok = prfI != nil
+		prf.prfsI = append(prf.prfsI, prfI)
 
-	return
-}
-
-func (prf *Proof) FlattenProof() (lis []*LineInfo) {
-	var (
-		prfI            *Proof
-		lisI            []*LineInfo
-		lenI, dex, lenL int
-		li              *LineInfo
-	)
-
-	lis, lenL = prf.GetLocalLines()
-
-	if lenI = len(prf.prfsI); 0 < lenI {
-	FLATTENPROOF_OUTER:
-		for _, prfI = range prf.prfsI {
-			lisI = prfI.FlattenProof()
-
-			if lenI = len(lisI); 0 == lenI {
-				continue
-			}
-
-			for dex, li = range lis {
-				if !isDischargeRule(li.Rule) {
-					continue
-				}
-
-				switch li.Rule {
-				case ToIntro, NegIntro, ForAllIntro, BoxIntro: // Two-line justifications.
-					if lisI[0].Ln == li.J1 {
-						lis = slices.Insert(lis, dex, lisI...)
-
-						continue FLATTENPROOF_OUTER
-					}
-
-				case ExistsElim, DiamondElim: // Three-line justifications.
-					if lisI[0].Ln == li.J2 {
-						lis = slices.Insert(lis, dex, lisI...)
-
-						continue FLATTENPROOF_OUTER
-					}
-				default:
-					panic("Unrecognized discharge rule.")
-				}
-			}
-
-			if dex == lenL {
-				lis = append(lis, lisI...)
-			}
-		}
+		tot += 1
 	}
 
 	return
 }
 
-func (prf *Proof) IsTheorem(ln *Line) (is bool) {
+func NewProof(wffG *fmla.Wff, wffsP ...*fmla.Wff) (prf *Proof, synB SynBreadth) {
 	var (
-		prfJ *Proof
-		lis  []*LineInfo
-		li   *LineInfo
-	)
-
-	if is = isDischargeRule(ln.rule); is {
-		if prfJ, is = prf.FindJustfyingInnerProof(ln); is {
-			lis = prfJ.FlattenProof()
-
-			is = true
-
-			for _, li = range lis {
-				if is = is &&
-					(li.J1 == nil || slices.ContainsFunc(lis, func(liN *LineInfo) (has bool) { has = liN.Ln == li.J1; return })) &&
-					(li.J2 == nil || slices.ContainsFunc(lis, func(liN *LineInfo) (has bool) { has = liN.Ln == li.J2; return })) &&
-					(li.J3 == nil || slices.ContainsFunc(lis, func(liN *LineInfo) (has bool) { has = liN.Ln == li.J3; return })); !is {
-					break
-				}
-			}
-		}
-	}
-
-	return
-}
-
-func (prf *Proof) IsJustifiedByLine(lnA *Line, lnJ *Line) (is bool) {
-	var (
-		depsJ map[*Line]bool
-	)
-
-	depsJ = getJustificationDependencies(lnA)
-
-	_, is = depsJ[lnJ]
-
-	return
-}
-
-func NewProof(goal *fmla.WffTree, prems ...*fmla.WffTree) (prf *Proof) {
-	var (
-		wff *fmla.WffTree
+		wff *fmla.Wff
 		ln  *Line
-		lh  LineHash
 	)
-
-	wff = fmla.NewAtomicWff(fmla.Top)
-
-	ln, _ = NewLine(wff, nil, TopIntro, 0, nil)
 
 	prf = &Proof{
-		wffG:   fmla.DeepCopy(goal),
-		purp:   Solve,
-		isOpen: true,
+		wffG: fmla.DeepCopy(wffG),
+		purp: Solve,
+		open: true,
 
-		lns: []*Line{ln},
-
-		dom: newDomain().updateDomain(goal).updateDomain(prems...),
-
-		hist: map[LineHash]bool{},
+		lns: []*Line{},
 
 		prfsI: []*Proof{},
 		prfO:  nil,
+
+		pvG:  0,
+		avG:  0,
+		fpcs: append([]fmla.Predicate{}, fmla.PredConsts...),
+		facs: append([]fmla.Argument{}, fmla.ArgConsts...),
 	}
 
-	lh = prf.hashLine(ln)
+	// Force an initial TopIntro line to meet the requirement that
+	// all proofs are non-empty.
+	wff = fmla.NewAtomicWff(fmla.Top)
 
-	prf.hist[lh] = true
+	ln = prf.NewLine(wff, TopIntro, Solve)
 
-	for _, wff = range prems {
-		ln, _ = NewLine(wff, nil, Premise, 0, nil)
+	prf.lns = append(prf.lns, ln)
 
-		_ = prf.InsertLine(ln)
+	for _, wff = range wffsP {
+		ln = prf.NewLine(wff, Premise, Solve)
+
+		_ = prf.InsertLines(ln)
 	}
+
+	wffsP = append(wffsP, wffG)
+
+	synB = GetSyntacticBreadth(wffsP...)
 
 	return
 }

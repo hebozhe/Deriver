@@ -18,6 +18,11 @@ With respect to propositional logic inference rules, every rule in a weaker logi
 - $\to E$:
   - $A \to B, A \vdash B$
 
+In Fitch-style proofs:
+
+- $Reit$:
+  - $A \vdash A$
+
 ### Positive Propositional Logic (PPL) Rules
 
 - $\wedge I$:
@@ -35,11 +40,6 @@ With respect to propositional logic inference rules, every rule in a weaker logi
 - $\leftrightarrow E$:
   - $A \leftrightarrow B \vdash A \to B$
   - $A \leftrightarrow B \vdash B \to A$
-
-For convenience in Fitch-style proofs:
-
-- $Reit$:
-  - $A \vdash A$
 
 ### Minimal Propositional Logic (MPL) Rules
 
@@ -86,9 +86,9 @@ Where $a/b$ replaces argument $b$ with argument $a$, and where $A/B$ replaces pr
 - $=E$:
   - $t=t', A(t) \vdash A(t'/t)$
 
-## System-Free Modal Logic
+## Modal Logic (ML)
 
-### Positive, System-Free Modal Logic Rules
+### Positive System K (PML+K) Rules
 
 - $\Box I$:
   - $[\top \dots A] \vdash \Box A$, where $[\top \dots A]$ is an inner proof for $\Box I$.
@@ -97,45 +97,38 @@ Where $a/b$ replaces argument $b$ with argument $a$, and where $A/B$ replaces pr
 - $\Diamond E$:
   - $\Diamond A, [A \dots B] \vdash \Diamond B$, where $[A \dots B]$ is an inner proof for $\Diamond E$.
 
-### Minimal, System-Free Modal Logic Rules
+### Minimal System K (MML+K) Rules
 
 - $\Box E$:
   - $\neg \Diamond A, [\dots] \vdash [\dots \neg A]$, where $[\dots]$ is an inner proof for $\Box I$ or $\Diamond E$.
 - $\Diamond E$:
-  - $\Diamond A, [A \dots \bot] \vdash \neg \Diamond B$, where $[A \dots \bot]$ is an inner proof for $\Diamond E$.
+  - $\Diamond A, [A \dots \bot] \vdash \neg \Diamond A$, where $[A \dots \bot]$ is an inner proof for $\Diamond E$.
 
-### Classical, System-Free Modal Logic Rules
+### Classical System K (CML+K) Rules
 
 - $\Diamond I$:
-  - $\neg \Box A \vdash \Diamond \neg A$.
+  - $\neg \Box \neg A \vdash \Diamond A$.
 
-## System-Bound Modal Logic
-
-### Positive System K (L+K) Rules
-
-- $\Box IK$:
-  - $A \vdash \Box A$, when $\vdash A$, where $A$ is a non-modal formula
-
-### Positive System KD (L+K+D) Rules
+### Positive System D (PML+D) Rules
 
 - $\Box ED$:
   - $\Box A \vdash \Diamond A$
 
-### Positive System KM (L+K+M) Rules
+### Positive System M (PML+M) Rules
 
 - $\Diamond IM$:
   - $A \vdash \Diamond A$
 - $\Box EM$:
   - $\Box A \vdash A$
 
-### Positive System K4 (L+K+4) Rules
+### Positive System 4 (PML+4) Rules
 
 - $\Box I4$:
   - $\Box A \vdash \Box \Box A$
 - $\Diamond E4$:
   - $\Diamond \Diamond A \vdash \Diamond A$
 
-### Positive System KB (L+K+B) Rules
+### Positive System B (PML+B) Rules
 
 - $\Box IB$:
   - $A \vdash \Box \Diamond A$

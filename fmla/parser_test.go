@@ -125,7 +125,7 @@ func TestParseStringToWff(t *testing.T) {
 	var (
 		tcs []testCase
 		tc  testCase
-		wff *WffTree
+		wff *Wff
 		ok  bool
 		mop Symbol
 	)
@@ -265,7 +265,7 @@ func TestRoundTrip(t *testing.T) {
 	var (
 		ss         []string
 		sA, sB     string
-		wffA, wffB *WffTree
+		wffA, wffB *Wff
 		ok         bool
 	)
 

@@ -19,14 +19,14 @@ func getLastElement[T any](sl []T) (last T, ok bool) {
 	return
 }
 
-func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument) (wff *WffTree) {
+func NewCompositeWff(sym Symbol, subL, subR *Wff, pv Predicate, av Argument) (wff *Wff) {
 	switch {
 	case slices.Contains(UnaryOps, sym):
 		if subL == nil {
 			panic("Missing subformula.")
 		}
 
-		wff = &WffTree{
+		wff = &Wff{
 			kind: Unary,
 			mop:  sym,
 			subL: DeepCopy(subL),
@@ -38,7 +38,7 @@ func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument)
 			panic("Missing subformulae.")
 		}
 
-		wff = &WffTree{
+		wff = &Wff{
 			kind: Binary,
 			mop:  sym,
 			subL: DeepCopy(subL),
@@ -59,7 +59,7 @@ func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument)
 			panic("Missing subformula.")
 		}
 
-		wff = &WffTree{
+		wff = &Wff{
 			kind: Quantified,
 			mop:  sym,
 			subL: DeepCopy(subL),
@@ -79,51 +79,75 @@ func NewCompositeWff(sym Symbol, subL, subR *WffTree, pv Predicate, av Argument)
 	return
 }
 
-func NewUnaryChainWff(syms []Symbol, wff *WffTree) (wffC *WffTree) {
-	var (
-		lenS int
-		subL *WffTree
-	)
-
-	if wff == nil {
-		panic("Invalid WffTree")
+func NewUnaryWff(sym Symbol, subL *Wff) (wff *Wff) {
+	if subL == nil {
+		panic("Missing subformula.")
 	}
 
-	lenS = len(syms)
-
-	switch lenS {
-	case 0:
-		wffC = DeepCopy(wff)
-	case 1:
-		if !slices.Contains(UnaryOps, syms[0]) {
-			panic("Invalid symbol.")
-		}
-
-		wffC = NewCompositeWff(syms[0], wff, nil, 0, 0)
-	default:
-		if !slices.Contains(UnaryOps, syms[0]) {
-			panic("Invalid symbol.")
-		}
-
-		subL = NewUnaryChainWff(syms[1:], wff)
-
-		wffC = NewCompositeWff(syms[0], subL, nil, 0, 0)
+	if sym != Neg && sym != Box && sym != Diamond {
+		panic("Invalid unary operator.")
 	}
+
+	wff = NewCompositeWff(sym, subL, nil, 0, 0)
 
 	return
 }
 
-func BuildCompositeWffs(nest uint, domP uint, domA uint, arity uint) (wffs chan *WffTree) {
+func NewBinaryWff(sym Symbol, subL, subR *Wff) (wff *Wff) {
+	if subL == nil || subR == nil {
+		panic("Missing subformulae.")
+	}
+
+	if sym != Wedge && sym != Vee && sym != To && sym != Iff {
+		panic("Invalid binary operator.")
+	}
+
+	wff = NewCompositeWff(sym, subL, subR, 0, 0)
+
+	return
+}
+
+func NewQuantifiedWff(sym Symbol, subL *Wff, pv Predicate, av Argument) (wff *Wff) {
+	if subL == nil {
+		panic("Missing subformula.")
+	}
+
+	if sym != Exists && sym != ForAll {
+		panic("Invalid quantifier.")
+	}
+
+	if pv != 0 && av != 0 {
+		panic("Ambiguous variable over which to quantify.")
+	}
+
+	if pv == 0 && av == 0 {
+		panic("No variable over which to quantify.")
+	}
+
+	if pv != 0 && !slices.Contains(PredVars, pv) {
+		panic("Invalid predicate variable.")
+	}
+
+	if av != 0 && !slices.Contains(ArgVars, av) {
+		panic("Invalid argument variable.")
+	}
+
+	wff = NewCompositeWff(sym, subL, nil, pv, av)
+
+	return
+}
+
+func BuildCompositeWffs(nest uint, domP uint, domA uint, arity uint) (wffs chan *Wff) {
 	switch nest {
 	case 0:
 		wffs = BuildMixedAtomicWffs(domP, domA, arity)
 	default:
-		wffs = make(chan *WffTree)
+		wffs = make(chan *Wff)
 
 		go func(n, dP, dA, ity uint) {
 			var (
-				subsL, subsR chan *WffTree
-				subL, subR   *WffTree
+				subsL, subsR chan *Wff
+				subL, subR   *Wff
 				sym          Symbol
 				pc           Predicate
 				ac           Argument

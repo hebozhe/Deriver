@@ -17,6 +17,7 @@ const (
 	ToElim
 	Reiteration
 	// Positive Propositional Logic (PPL)
+	TopElim
 	WedgeIntro
 	WedgeElim
 	VeeIntro
@@ -38,22 +39,22 @@ const (
 	// N-Order Logic with Identity (QLi)
 	EqualsIntro
 	EqualsElim
-	// Modal Logic
+	// Modal Logic K
+	// Positive Modal Logic K
 	BoxIntro
 	BoxElim
 	DiamondElim
+	// Classical Modal Logic K
 	DiamondIntro
-	// Modal Logic K
-	IntroK
-	// Modal Logic D (K+D)
+	// Modal Logic D
 	ElimD
-	// Modal Logic M (K+M)
+	// Modal Logic M
 	IntroM
 	ElimM
-	// Modal Logic 4 (K+4)
+	// Modal Logic 4
 	Intro4
 	Elim4
-	// Modal Logic B (K+B)
+	// Modal Logic B
 	IntroB
 	ElimB
 )
@@ -76,6 +77,7 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	TopIntro:     0,
 	ToIntro:      2,
 	ToElim:       2,
+	TopElim:      2,
 	WedgeIntro:   2,
 	WedgeElim:    1,
 	VeeIntro:     1,
@@ -97,7 +99,6 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	BoxElim:      1,
 	DiamondElim:  3,
 	DiamondIntro: 1,
-	IntroK:       1,
 	ElimD:        1,
 	IntroM:       1,
 	ElimM:        1,
@@ -125,7 +126,7 @@ func isJCountCorrect(rule, purp NDRule, lenJ int) (is bool) {
 	return
 }
 
-func isDischargeRule(rule NDRule) (is bool) {
+func IsDischargeRule(rule NDRule) (is bool) {
 	_, is = purposePCount[rule]
 
 	return

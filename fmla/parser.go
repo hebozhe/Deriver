@@ -16,14 +16,14 @@ type parser struct {
 	s    string
 	syms []Symbol
 	deps []int
-	wffs []*WffTree
+	wffs []*Wff
 }
 
 var (
 	rexWS   = regexp.MustCompile(`\s`)
-	rexBase = regexp.MustCompile(`^[A-Z][a-z]*$`)
+	rexBase = regexp.MustCompile(`^[A-ZΑ][a-zα]*$`)
 	rexTorF = regexp.MustCompile(`^(⊤|⊥)$`)
-	rexIden = regexp.MustCompile(`^[a-z]=[a-z]$`)
+	rexIden = regexp.MustCompile(`^[a-zα]=[a-zα]$`)
 )
 
 func convertNotation(sA string) (sB string, ok bool) {
@@ -71,7 +71,7 @@ func convertNotation(sA string) (sB string, ok bool) {
 		string(ArgConsts) + string(ArgVars) +
 		string(UnaryOps) + string(BinaryOps) + string(Quantifiers) +
 		string(LPar) + string(RPar) +
-		string(Top) + string(Bot) + string(Equals)
+		string(Top) + string(Bot) + string(Equals) + string(AlphaPred) + string(AlphaArg)
 
 	ok = true
 
@@ -94,7 +94,7 @@ func newParser(s string) (prs *parser, ok bool) {
 		s:    s,
 		syms: []Symbol(s),
 		deps: []int{},
-		wffs: []*WffTree{},
+		wffs: []*Wff{},
 	}
 
 	for _, sym = range prs.syms {
@@ -231,7 +231,7 @@ func cutParser(prs *parser) (mop Symbol, pv Predicate, av Argument, prsL, prsR *
 	return
 }
 
-func parseAtomicFmla(prs *parser) (wff *WffTree) {
+func parseAtomicFmla(prs *parser) (wff *Wff) {
 	var (
 		pred       Predicate
 		args       []Argument
@@ -275,7 +275,7 @@ func parseAtomicFmla(prs *parser) (wff *WffTree) {
 	return
 }
 
-func IsClosedWff(wff *WffTree) (is bool) {
+func IsClosedWff(wff *Wff) (is bool) {
 	var (
 		pvs        []Predicate
 		avs        []Argument
@@ -291,14 +291,14 @@ func IsClosedWff(wff *WffTree) (is bool) {
 	return
 }
 
-func parseFullFmla(s string) (fmla *WffTree, ok bool) {
+func parseFullFmla(s string) (fmla *Wff, ok bool) {
 	var (
 		prs        *parser
 		mop        Symbol
 		pv         Predicate
 		av         Argument
 		prsL, prsR *parser
-		subL, subR *WffTree
+		subL, subR *Wff
 		okL, okR   bool
 	)
 
@@ -340,9 +340,9 @@ func parseFullFmla(s string) (fmla *WffTree, ok bool) {
 	return
 }
 
-func ParseStringToWff(s string) (wff *WffTree, ok bool) {
+func ParseStringToWff(s string) (wff *Wff, ok bool) {
 	var (
-		fmla *WffTree
+		fmla *Wff
 	)
 
 	fmla, ok = parseFullFmla(s)
@@ -356,15 +356,39 @@ func ParseStringToWff(s string) (wff *WffTree, ok bool) {
 	return
 }
 
-func FillTemplate(tmp string, wffs ...*WffTree) (wffT *WffTree) {
+func FillTemplate(tmp string, wffs ...*Wff) (wffT *Wff) {
 	var (
-		wff *WffTree
+		wff *Wff
 		s   string
 		ok  bool
 	)
 
 	for _, wff = range wffs {
 		s = GetWffString(wff)
+
+		tmp = strings.Replace(tmp, "?", s, 1)
+	}
+
+	if strings.Contains(tmp, "?") {
+		panic("Template not filled.")
+	} else if wffT, ok = ParseStringToWff(tmp); !ok {
+		panic("Failed to parse wff from template.")
+	}
+
+	return
+}
+
+func FillTemplateWithLocales(tmp string, wff *Wff, locs ...string) (wffT *Wff) {
+	var (
+		loc, s string
+		wffL   *Wff
+		ok     bool
+	)
+
+	for _, loc = range locs {
+		wffL = RetrieveSubformula(wff, loc)
+
+		s = GetWffString(wffL)
 
 		tmp = strings.Replace(tmp, "?", s, 1)
 	}

@@ -1,15 +1,15 @@
 package fmla
 
-func NewAtomicWff(pc Predicate, acs ...Argument) (wff *WffTree) {
+func NewAtomicWff(pc Predicate, acs ...Argument) (wff *Wff) {
 	var (
 		lenA int
 	)
 
 	if lenA = len(acs); pc == Equals && lenA != 2 {
-		panic("Equals predicate requires exactly two arguments.")
+		panic("Equality predicate requires exactly two arguments.")
 	}
 
-	wff = &WffTree{
+	wff = &Wff{
 		kind: Atomic,
 		mop:  NoSymbol,
 		pred: pc,
@@ -58,10 +58,10 @@ func buildTupsAtArity(domA uint, arity uint) (tups [][]Argument, lenT uint) {
 	return
 }
 
-func BuildAtomicWffs(domP uint, domA uint, arity uint) (wffs chan *WffTree) {
+func BuildAtomicWffs(domP uint, domA uint, arity uint) (wffs chan *Wff) {
 	domP, domA = min(domP, 20), min(domA, 20)
 
-	wffs = make(chan *WffTree)
+	wffs = make(chan *Wff)
 
 	switch domP {
 	case 0:
@@ -112,15 +112,15 @@ func BuildAtomicWffs(domP uint, domA uint, arity uint) (wffs chan *WffTree) {
 	return
 }
 
-func BuildMixedAtomicWffs(maxDomP uint, maxDomA uint, maxArity uint) (wffs chan *WffTree) {
+func BuildMixedAtomicWffs(maxDomP uint, maxDomA uint, maxArity uint) (wffs chan *Wff) {
 
-	wffs = make(chan *WffTree)
+	wffs = make(chan *Wff)
 
 	go func(mdP, mdA, mIty uint) {
 		var (
 			ity   uint
-			pwffs chan *WffTree
-			pwff  *WffTree
+			pwffs chan *Wff
+			pwff  *Wff
 		)
 
 		// Get Top and Bot.
