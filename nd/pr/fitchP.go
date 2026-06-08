@@ -8,10 +8,63 @@ import (
 	"unicode/utf8"
 )
 
+func NameLogic(infS InfStrength, synB SynBreadth, modS ModStrength) (name string) {
+	switch infS {
+	case Implicational:
+		name += "T"
+	case Positive:
+		name += "P"
+	case Minimal:
+		name += "M"
+	case Intuitionistic:
+		name += "I"
+	case Classical:
+		name += "C"
+	}
+
+	switch {
+	case synB%QL == 0:
+		name += "QL"
+	case synB%NL == 0:
+		name += "NL"
+	case synB%PL == 0:
+		name += "PL"
+	}
+
+	if synB%I == 0 {
+		name += "i"
+	}
+
+	if synB%ML == 0 {
+		name += "+"
+
+		if modS%ModalK == 0 {
+			name += "K"
+		}
+
+		if modS%ModalD == 0 {
+			name += "D"
+		}
+
+		if modS%ModalM == 0 {
+			name += "M"
+		}
+
+		if modS%Modal4 == 0 {
+			name += "4"
+		}
+
+		if modS%ModalB == 0 {
+			name += "B"
+		}
+	}
+
+	return
+}
+
 var ruleToText map[NDRule]string = map[NDRule]string{
 	Solve:        "SL",
 	Premise:      "PR",
-	Theorem:      "TH",
 	Assumption:   "AS",
 	TopIntro:     fmt.Sprintf("%cI", fmla.Top),
 	ToIntro:      fmt.Sprintf("%cI", fmla.To),
@@ -35,7 +88,8 @@ var ruleToText map[NDRule]string = map[NDRule]string{
 	EqualsIntro:  fmt.Sprintf("%cI", fmla.Equals),
 	EqualsElim:   fmt.Sprintf("%cE", fmla.Equals),
 	BoxIntro:     fmt.Sprintf("%cI", fmla.Box),
-	BoxElim:      fmt.Sprintf("%cE", fmla.Box),
+	BoxElimC:     fmt.Sprintf("%cE", fmla.Box),
+	BoxElimW:     fmt.Sprintf("%cE", fmla.Box),
 	DiamondElim:  fmt.Sprintf("%cE", fmla.Diamond),
 	DiamondIntro: fmt.Sprintf("%cI", fmla.Diamond),
 	ElimD:        fmt.Sprintf("%cED", fmla.Box),

@@ -8,7 +8,6 @@ type NDRule uint8
 const (
 	Solve NDRule = iota // This is a vacuous purpose for the base proof.
 	Premise
-	Theorem
 	// Assumpions
 	Assumption
 	// Implicational Propositional Logic (TPL)
@@ -42,7 +41,8 @@ const (
 	// Modal Logic K
 	// Positive Modal Logic K
 	BoxIntro
-	BoxElim
+	BoxElimC // Box Elimination for CK...
+	BoxElimW // Box Elimination for WK...
 	DiamondElim
 	// Classical Modal Logic K
 	DiamondIntro
@@ -73,7 +73,6 @@ var purposePCount map[NDRule]int = map[NDRule]int{
 
 var rulePCount map[NDRule]int = map[NDRule]int{
 	Premise:      0,
-	Theorem:      0,
 	TopIntro:     0,
 	ToIntro:      2,
 	ToElim:       2,
@@ -96,7 +95,8 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	EqualsIntro:  0,
 	EqualsElim:   2,
 	BoxIntro:     2,
-	BoxElim:      1,
+	BoxElimC:     1,
+	BoxElimW:     1,
 	DiamondElim:  3,
 	DiamondIntro: 1,
 	ElimD:        1,

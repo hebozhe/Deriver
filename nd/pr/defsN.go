@@ -30,7 +30,7 @@ func GetSyntacticBreadth(wffs ...*fmla.Wff) (synB SynBreadth) {
 		subL, subR *fmla.Wff
 	)
 
-	synB = 1
+	synB = bL
 
 	for _, wff = range wffs {
 		mop = fmla.GetWffMop(wff)
@@ -69,28 +69,24 @@ func GetSyntacticBreadth(wffs ...*fmla.Wff) (synB SynBreadth) {
 		}
 
 		// Reduce the syntactic breadth for every formula.
-		for synB%4 == 0 {
-			synB = synB / 2
+		for synB%(PL*PL) == 0 {
+			synB = synB / PL
 		}
 
-		for synB%6 == 0 { // If PL and NL, pick NL.
-			synB = synB / 2
+		for synB%(NL*NL) == 0 {
+			synB = synB / NL
 		}
 
-		for synB%9 == 0 {
-			synB = synB / 3
+		for synB%(I*I) == 0 {
+			synB = synB / I
 		}
 
-		for synB%25 == 0 {
-			synB = synB / 5
+		for synB%(QL*QL) == 0 {
+			synB = synB / QL
 		}
 
-		for synB%49 == 0 {
-			synB = synB / 7
-		}
-
-		for synB%121 == 0 {
-			synB = synB / 11
+		for synB%(ML*ML) == 0 {
+			synB = synB / ML
 		}
 	}
 
@@ -108,8 +104,8 @@ func IsRuleForSyntacticBreadth(rule NDRule, synB SynBreadth) (is bool) {
 	case ForAllIntro, ForAllElim, ExistsIntro, ExistsElim:
 		is = synB%QL == 0
 	case EqualsIntro, EqualsElim:
-		is = synB%I == 0
-	case BoxIntro, BoxElim, DiamondElim, DiamondIntro,
+		is = synB%NL == 0 && synB%I == 0
+	case BoxIntro, BoxElimC, BoxElimW, DiamondElim, DiamondIntro,
 		ElimD, IntroM, ElimM, Intro4, Elim4, IntroB, ElimB:
 		is = synB%ML == 0
 	}
@@ -126,17 +122,17 @@ const (
 	Classical
 )
 
-func inferStrengthOfNDRule(rule NDRule) (infS InfStrength) {
+func inferentialStrengthOfNDRule(rule NDRule) (infS InfStrength) {
 	switch rule {
-	case Solve, Premise, Theorem, Assumption:
+	case Solve, Premise, Assumption:
 		infS = NoInference
 	case TopIntro, Reiteration,
 		ToIntro, ToElim,
 		EqualsIntro, EqualsElim:
 		infS = Implicational
-	case WedgeIntro, WedgeElim, VeeIntro, VeeElim, IffIntro, IffElim, BoxIntro, BoxElim, DiamondElim:
+	case WedgeIntro, WedgeElim, VeeIntro, VeeElim, IffIntro, IffElim, BoxIntro, BoxElimC, DiamondElim:
 		infS = Positive
-	case BotIntro, NegIntro:
+	case BotIntro, NegIntro, BoxElimW:
 		infS = Minimal
 	case BotElim:
 		infS = Intuitionistic
@@ -145,11 +141,29 @@ func inferStrengthOfNDRule(rule NDRule) (infS InfStrength) {
 	case ForAllIntro, ForAllElim,
 		ExistsIntro, ExistsElim:
 		infS = Positive
-	case ElimD, IntroM, ElimM,
-		Intro4, Elim4, IntroB, ElimB:
+	case ElimD, IntroM, ElimM, Intro4, Elim4, IntroB, ElimB:
 		infS = Positive
 	default:
 		panic("Failed to capture NDRule.")
+	}
+
+	return
+}
+
+func modalStrengthOfNDRule(rule NDRule) (modS ModStrength) {
+	switch rule {
+	case BoxIntro, BoxElimC, DiamondElim, DiamondIntro:
+		modS = ModalK
+	case ElimD:
+		modS = ModalD
+	case ElimM, IntroM:
+		modS = ModalM
+	case Elim4, Intro4:
+		modS = Modal4
+	case ElimB, IntroB:
+		modS = ModalB
+	default:
+		modS = NoModality
 	}
 
 	return
@@ -174,6 +188,8 @@ const (
 	// Extensions from M:
 	ModalM4 ModStrength = ModalM * Modal4
 	ModalMB ModStrength = ModalM * ModalB
+	// Extensions from 4:
+	Modal4B ModStrength = Modal4 * ModalB
 	// Extensions from KD:
 	ModalKDM ModStrength = ModalKD * ModalM
 	ModalKD4 ModStrength = ModalKD * Modal4
@@ -203,14 +219,16 @@ const (
 	ModalKDM4B ModStrength = ModalKDM4 * ModalB
 )
 
-func InferStrengthOfNDRules(rules ...NDRule) (infS InfStrength) {
+func GetInferentialStrengthOfNDRules(rules ...NDRule) (infS InfStrength) {
 	var (
 		rule  NDRule
 		infSX InfStrength
 	)
 
+	infS = NoInference
+
 	for _, rule = range rules {
-		if infSX = inferStrengthOfNDRule(rule); infS < infSX {
+		if infSX = inferentialStrengthOfNDRule(rule); infS < infSX {
 			infS = infSX
 		}
 
@@ -222,20 +240,49 @@ func InferStrengthOfNDRules(rules ...NDRule) (infS InfStrength) {
 	return
 }
 
-func IsAllowedModality(rule NDRule, modS ModStrength) (is bool) {
-	switch rule {
-	case BoxIntro, BoxElim, DiamondIntro, DiamondElim:
-		is = modS%ModalK == 0
-	case ElimD:
-		is = modS%ModalD == 0
-	case ElimM, IntroM:
-		is = modS%ModalM == 0
-	case Elim4, Intro4:
-		is = modS%Modal4 == 0
-	case ElimB, IntroB:
-		is = modS%ModalB == 0
+func GetModalStrengthOfNDRules(rules ...NDRule) (modS ModStrength) {
+	var (
+		rule  NDRule
+		modSX ModStrength
+	)
+
+	modS = NoModality
+
+	for _, rule = range rules {
+		if modSX = modalStrengthOfNDRule(rule); modS%modSX != 0 {
+			modS = modS * modSX
+		}
+
+		if modS == ModalKDM4B {
+			break
+		}
+	}
+
+	return
+}
+
+func HasModality(modSA ModStrength, modSB ModStrength) (has bool) {
+	has = modSA%modSB == 0
+
+	return
+}
+
+func CountModalities(modS ModStrength) (n int) {
+	switch {
+	case modS == NoModality:
+		n = 0
+	case modS%ModalK == 0:
+		n = 1 + CountModalities(modS/ModalK)
+	case modS%ModalD == 0:
+		n = 1 + CountModalities(modS/ModalD)
+	case modS%ModalM == 0:
+		n = 1 + CountModalities(modS/ModalM)
+	case modS%Modal4 == 0:
+		n = 1 + CountModalities(modS/Modal4)
+	case modS%ModalB == 0:
+		n = 1 + CountModalities(modS/ModalB)
 	default:
-		is = true
+		panic("Modality not handled.")
 	}
 
 	return
