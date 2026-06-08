@@ -13,17 +13,21 @@ func DeepCopy(wff *Wff) (wffC *Wff) {
 			av:   wff.av,
 			pred: wff.pred,
 			args: wff.args,
-			subL: DeepCopy(wff.subL),
-			subR: DeepCopy(wff.subR),
-			sup:  nil, // The parent is set below.
-			h:    wff.h,
+			// subL: wff.subL, // The children are set below.
+			// subR: wff.subR, // The children are set below.
+			// sup:  nil, // The parent is set below.
+			h: wff.h,
 		}
 
-		if wffC.subL != nil {
+		if wff.subL != nil {
+			wffC.subL = DeepCopy(wff.subL)
+
 			wffC.subL.sup = wffC
 		}
 
-		if wffC.subR != nil {
+		if wff.subR != nil {
+			wffC.subR = DeepCopy(wff.subR)
+
 			wffC.subR.sup = wffC
 		}
 	}
@@ -32,38 +36,8 @@ func DeepCopy(wff *Wff) (wffC *Wff) {
 }
 
 func ReplacePreds(wff *Wff, pA Predicate, pB Predicate) (wffR *Wff) {
-	if wff == nil {
-		panic("Invalid WffTree")
-	}
-
-	wffR = DeepCopy(wff)
-
-	switch wffR.kind {
-	case Atomic:
-		if wffR.pred == pA {
-			wffR.pred = pB
-		}
-	case Unary:
-		wffR.subL = ReplacePreds(wffR.subL, pA, pB)
-	case Binary:
-		wffR.subL = ReplacePreds(wffR.subL, pA, pB)
-
-		wffR.subR = ReplacePreds(wffR.subR, pA, pB)
-	case Quantified:
-		wffR.subL = ReplacePreds(wffR.subL, pA, pB)
-	default:
-		panic("Invalid WffTree")
-	}
-
-	wffR.h = hashWff(wffR)
-
-	return
-}
-
-func ReplaceArgs(wff *Wff, aA Argument, aB Argument) (wffR *Wff) {
 	var (
-		arg     Argument
-		newArgs ArgString
+		replacePredsMut func(wffM *Wff) (n int)
 	)
 
 	if wff == nil {
@@ -72,32 +46,84 @@ func ReplaceArgs(wff *Wff, aA Argument, aB Argument) (wffR *Wff) {
 
 	wffR = DeepCopy(wff)
 
-	switch wffR.kind {
-	case Atomic:
-		newArgs = ArgString("")
+	replacePredsMut = func(wffM *Wff) (n int) {
+		switch wffM.kind {
+		case Atomic:
+			if wffM.pred == pA {
+				wffM.pred = pB
 
-		for _, arg = range argStringToArgs(wffR.args) {
-			if arg == aA {
-				newArgs += ArgString(aB)
-			} else {
-				newArgs += ArgString(arg)
+				n = 1
 			}
+		case Unary:
+			n = replacePredsMut(wffM.subL)
+		case Binary:
+			n = replacePredsMut(wffM.subL) + replacePredsMut(wffM.subR)
+		case Quantified:
+			n = replacePredsMut(wffM.subL)
+		default:
+			panic("Invalid WffTree")
 		}
 
-		wffR.args = newArgs
-	case Unary:
-		wffR.subL = ReplaceArgs(wffR.subL, aA, aB)
-	case Binary:
-		wffR.subL = ReplaceArgs(wffR.subL, aA, aB)
+		if 0 < n {
+			wffM.h = hashWff(wffM)
+		}
 
-		wffR.subR = ReplaceArgs(wffR.subR, aA, aB)
-	case Quantified:
-		wffR.subL = ReplaceArgs(wffR.subL, aA, aB)
-	default:
+		return
+	}
+
+	_ = replacePredsMut(wffR)
+
+	return
+}
+
+func ReplaceArgs(wff *Wff, aA Argument, aB Argument) (wffR *Wff) {
+	var (
+		replaceArgsMut func(wffM *Wff) (n int)
+	)
+
+	if wff == nil {
 		panic("Invalid WffTree")
 	}
 
-	wffR.h = hashWff(wffR)
+	wffR = DeepCopy(wff)
+
+	replaceArgsMut = func(wffM *Wff) (n int) {
+		switch wffM.kind {
+		case Atomic:
+			var (
+				newArgs ArgString
+				arg     Argument
+			)
+
+			for _, arg = range argStringToArgs(wffM.args) {
+				if arg == aA {
+					newArgs += ArgString(aB)
+
+					n += 1
+				} else {
+					newArgs += ArgString(arg)
+				}
+			}
+
+			wffM.args = newArgs
+		case Unary:
+			n = replaceArgsMut(wffM.subL)
+		case Binary:
+			n = replaceArgsMut(wffM.subL) + replaceArgsMut(wffM.subR)
+		case Quantified:
+			n = replaceArgsMut(wffM.subL)
+		default:
+			panic("Invalid WffTree")
+		}
+
+		if 0 < n {
+			wffM.h = hashWff(wffM)
+		}
+
+		return
+	}
+
+	_ = replaceArgsMut(wffR)
 
 	return wffR
 }
@@ -358,9 +384,7 @@ func GetAllSubformulae(wff *Wff) (swffs []*Wff) {
 
 		swffs = append(swffs, swffsL...)
 	case Binary:
-		swffsL = GetAllSubformulae(wff.subL)
-
-		swffsR = GetAllSubformulae(wff.subR)
+		swffsL, swffsR = GetAllSubformulae(wff.subL), GetAllSubformulae(wff.subR)
 
 		swffs = append(swffs, swffsL...)
 		swffs = append(swffs, swffsR...)

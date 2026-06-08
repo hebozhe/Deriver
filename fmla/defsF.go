@@ -3,7 +3,6 @@ package fmla
 import (
 	"fmt"
 	"slices"
-	"strings"
 	"unicode/utf8"
 )
 
@@ -32,12 +31,10 @@ const (
 	LPar Symbol = '('
 	RPar Symbol = ')'
 	// Primitive Predicates
-	Equals    Predicate = '='
-	Top       Predicate = '⊤'
-	Bot       Predicate = '⊥'
-	AlphaPred Predicate = 'Α'
+	Equals Predicate = '='
+	Top    Predicate = '⊤'
+	Bot    Predicate = '⊥'
 	// Primtive Arguments
-	AlphaArg Argument = 'α'
 )
 
 var PredConsts = []Predicate("ABCDEFGHIJKLMNOPQRST")
@@ -175,7 +172,13 @@ func GetWffSubformulae(wff *Wff) (subL, subR *Wff) {
 		panic("Invalid WffTree")
 	}
 
-	subL, subR = DeepCopy(wff.subL), DeepCopy(wff.subR)
+	if wff.subL != nil {
+		subL = DeepCopy(wff.subL)
+	}
+
+	if wff.subR != nil {
+		subR = DeepCopy(wff.subR)
+	}
 
 	return
 }
@@ -185,7 +188,9 @@ func GetWffSuperformula(wff *Wff) (sup *Wff) {
 		panic("Invalid WffTree")
 	}
 
-	sup = DeepCopy(wff.sup)
+	if wff.sup != nil {
+		sup = DeepCopy(wff.sup)
+	}
 
 	return
 }
@@ -241,12 +246,12 @@ func GetConstants(wff *Wff) (pcs []Predicate, acs []Argument) {
 
 	switch wff.kind {
 	case Atomic:
-		if ('A'-1 < wff.pred && wff.pred < 'T'+1) || wff.pred == AlphaPred {
+		if 'A'-1 < wff.pred && wff.pred < 'T'+1 {
 			pcs = append(pcs, wff.pred)
 		}
 
 		for _, arg = range argStringToArgs(wff.args) {
-			if ('a'-1 < arg && arg < 't'+1) || arg == AlphaArg {
+			if 'a'-1 < arg && arg < 't'+1 {
 				acs = append(acs, arg)
 			}
 		}
@@ -608,12 +613,12 @@ func HasOp(wff *Wff, op Symbol) (has bool) {
 	return
 }
 
-func CountOps(wff *Wff, op Symbol) (count uint) {
+func CountOps(wff *Wff, ops ...Symbol) (count uint) {
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
 
-	if wff.mop == op {
+	if slices.Contains(ops, wff.mop) {
 		count = 1
 	}
 
@@ -621,11 +626,11 @@ func CountOps(wff *Wff, op Symbol) (count uint) {
 	case Atomic:
 		// Trivially true with NoSymbol.
 	case Unary:
-		count += CountOps(wff.subL, op)
+		count += CountOps(wff.subL, ops...)
 	case Binary:
-		count += CountOps(wff.subL, op) + CountOps(wff.subR, op)
+		count += CountOps(wff.subL, ops...) + CountOps(wff.subR, ops...)
 	case Quantified:
-		count += CountOps(wff.subL, op)
+		count += CountOps(wff.subL, ops...)
 	default:
 		panic("Invalid WffTree")
 	}
@@ -654,19 +659,19 @@ func HasFreeVars(wff *Wff) (has bool) {
 }
 
 func HasSubformula(wff *Wff, sub *Wff) (has bool) {
-	if wff == nil {
+	if wff == nil || sub == nil {
 		panic("Invalid WffTree")
 	}
 
 	switch wff.kind {
 	case Atomic:
-		has = IsIdentical(wff, sub)
+		has = wff.h == sub.h
 	case Unary:
-		has = IsIdentical(wff, sub) || HasSubformula(wff.subL, sub)
+		has = wff.h == sub.h || HasSubformula(wff.subL, sub)
 	case Binary:
-		has = IsIdentical(wff, sub) || HasSubformula(wff.subL, sub) || HasSubformula(wff.subR, sub)
+		has = wff.h == sub.h || HasSubformula(wff.subL, sub) || HasSubformula(wff.subR, sub)
 	case Quantified:
-		has = IsIdentical(wff, sub) || HasSubformula(wff.subL, sub)
+		has = wff.h == sub.h || HasSubformula(wff.subL, sub)
 	default:
 		panic("Invalid WffTree")
 	}
@@ -675,26 +680,35 @@ func HasSubformula(wff *Wff, sub *Wff) (has bool) {
 }
 
 func RetrieveSubformula(wff *Wff, loc string) (sub *Wff) {
+	var (
+		chr rune
+	)
+
 	if wff == nil {
 		panic("Invalid WffTree")
 	}
 
-	switch {
-	case strings.HasPrefix(loc, "L"):
-		switch wff.kind {
-		case Unary, Binary, Quantified:
-			sub = RetrieveSubformula(wff.subL, loc[1:])
+	sub = wff
+
+RETRIEVESUBFORMULA_LOOP:
+	for _, chr = range loc {
+		if sub == nil {
+			panic("Invalid retrieval string.")
 		}
-	case strings.HasPrefix(loc, "R"):
-		switch wff.kind {
-		case Binary:
-			sub = RetrieveSubformula(wff.subR, loc[1:])
+
+		switch chr {
+		case 'L':
+			sub = sub.subL
+		case 'R':
+			sub = sub.subR
+		case '!':
+			break RETRIEVESUBFORMULA_LOOP
+		default:
+			panic("Invalid retrieval character.")
 		}
-	case strings.HasPrefix(loc, "!"):
-		sub = DeepCopy(wff)
-	default:
-		panic("Invalid retrieval string.")
 	}
+
+	sub = DeepCopy(sub)
 
 	return
 }

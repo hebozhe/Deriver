@@ -51,7 +51,7 @@ func hashWffInto(hash64 hash.Hash64, wff *Wff) {
 }
 
 func GetWffHash(wff *Wff) (h WffHash) {
-	h = hashWff(wff)
+	h = wff.h
 
 	return
 }

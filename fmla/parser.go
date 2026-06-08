@@ -71,7 +71,7 @@ func convertNotation(sA string) (sB string, ok bool) {
 		string(ArgConsts) + string(ArgVars) +
 		string(UnaryOps) + string(BinaryOps) + string(Quantifiers) +
 		string(LPar) + string(RPar) +
-		string(Top) + string(Bot) + string(Equals) + string(AlphaPred) + string(AlphaArg)
+		string(Top) + string(Bot) + string(Equals)
 
 	ok = true
 
