@@ -27,14 +27,14 @@ func newLineInfo(ln *pr.Line) (li *lineInfo) {
 func genProofPairs(prf *pr.Proof, d int) (prfPairs iter.Seq2[*pr.Proof, *pr.Proof]) {
 	prfPairs = func(yield func(prfA, prfB *pr.Proof) (cont bool)) {
 		var (
-			prfs       []*pr.Proof
-			prfA, prfB *pr.Proof
+			prfsA, prfsB []*pr.Proof
+			prfA, prfB   *pr.Proof
 		)
 
-		prfs = prf.GetInnerProofs(true)
+		prfsA = prf.GetInnerProofs(true)
 
 	GENPROOFPAIRS_OUTER:
-		for _, prfA = range prfs {
+		for _, prfA = range prfsA {
 			if !prfA.IsOpen() {
 				continue
 			}
@@ -45,16 +45,10 @@ func genProofPairs(prf *pr.Proof, d int) (prfPairs iter.Seq2[*pr.Proof, *pr.Proo
 				}
 			}
 
-			for _, prfB = range prfs {
+			prfsB = prfA.GetInnerProofsAtModalDistance(false, d)
+
+			for _, prfB = range prfsB {
 				if !prfB.IsOpen() {
-					continue
-				}
-
-				if !prfA.IsOuter(prfB) {
-					continue
-				}
-
-				if prfA.GetModalDistance(prfB) != d {
 					continue
 				}
 
@@ -134,12 +128,10 @@ func genLineInfoPairs(prf *pr.Proof, d int) (liPairs iter.Seq2[*lineInfo, *lineI
 
 		GENLINEINFOPAIRS_OUTER:
 			for dex, lnA = range lns {
+				liA = newLineInfo(lnA)
+
 				for _, lnB = range lns[dex+1:] {
-					if liA, liB = newLineInfo(lnA), newLineInfo(lnB); !liA.prf.IsOpen() {
-						continue GENLINEINFOPAIRS_OUTER
-					} else if !liB.prf.IsOpen() {
-						continue
-					}
+					liB = newLineInfo(lnB)
 
 					if liA.prf != liB.prf && !liA.prf.IsOuter(liB.prf) {
 						continue GENLINEINFOPAIRS_OUTER
@@ -240,6 +232,42 @@ func genProofWffPairs(prf *pr.Proof) (prfWffPairs iter.Seq2[*pr.Proof, *fmla.Wff
 					if !yield(prfA, wffA) {
 						break GENPROOFWFFPAIRS_OUTER
 					}
+				}
+			}
+		}
+	}
+
+	return
+}
+
+func genProofGoalPairs(prf *pr.Proof) (prfWffPairs iter.Seq2[*pr.Proof, *fmla.Wff]) {
+	prfWffPairs = func(yield func(prfA *pr.Proof, wffA *fmla.Wff) (cont bool)) {
+		var (
+			prfs  []*pr.Proof
+			prfA  *pr.Proof
+			wffG  *fmla.Wff
+			insts iter.Seq[*fmla.Wff]
+			wffI  *fmla.Wff
+		)
+
+		prfs = prf.GetAllProofs()
+
+		for _, prfA = range prfs {
+			if !prfA.IsOpen() {
+				continue
+			}
+
+			wffG = prfA.GetWffG()
+
+			if !yield(prfA, wffG) {
+				break
+			}
+
+			insts = genInstantiations(wffG)
+
+			for wffI = range insts {
+				if !yield(prfA, wffI) {
+					break
 				}
 			}
 		}
