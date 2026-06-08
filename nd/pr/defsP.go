@@ -136,8 +136,8 @@ type Proof struct {
 
 	lns []*Line
 
-	prfsI []*Proof
 	prfO  *Proof
+	prfsI []*Proof
 
 	pvG fmla.Predicate // The goal predicate variable in a QL subproof.
 	avG fmla.Argument  // The goal argument variable in a QL subproof.
@@ -146,6 +146,9 @@ type Proof struct {
 
 	fpcs []fmla.Predicate // Fresh predicate constants.
 	facs []fmla.Argument  // Fresh argument constants.
+
+	pd int // Proof depth of the proof.
+	md int // Modal depth of the proof.
 }
 
 func (prf *Proof) GetWffG() (wffG *fmla.Wff) {
@@ -167,15 +170,6 @@ func (prf *Proof) IsOpen() (is bool) {
 }
 
 func (prf *Proof) GetLines() (lns []*Line) {
-	var (
-		dex int
-	)
-
-	// Refresh the line proof pointers, in case any are missing.
-	for dex = range prf.lns {
-		prf.lns[dex].prf = prf
-	}
-
 	lns = append(lns, prf.lns...)
 
 	return
@@ -206,30 +200,18 @@ func (prf *Proof) GetWffAtLineIndex(dex int) (wff *fmla.Wff) {
 }
 
 func (prf *Proof) GetModalDepth() (md int) {
-	if prf.purp == BoxIntro || prf.purp == DiamondElim {
-		md = 1
-	}
-
-	if prf.prfO != nil {
-		md += prf.prfO.GetModalDepth()
-	}
+	md = prf.md
 
 	return
 }
 
-func (prf *Proof) GetModalDistance(toPrf *Proof) (md int) {
-	var (
-		mdA, mdB int
-	)
-
+func (prf *Proof) GetModalDistance(toPrf *Proof) (mD int) {
 	if prf == toPrf {
-		md = 0
+		mD = 0
 	} else if prf.IsOuter(toPrf) {
-		mdA, mdB = prf.GetModalDepth(), toPrf.GetModalDepth()
-
-		md = mdB - mdA
+		mD = toPrf.md - prf.md
 	} else {
-		md = -1
+		mD = -1
 	}
 
 	return
@@ -497,26 +479,18 @@ func (prf *Proof) IsReachable(byPrf *Proof) (prfO, prfI *Proof, is bool) {
 }
 
 func (prf *Proof) GetProofDepth() (pd int) {
-	if prf.prfO != nil {
-		pd = 1 + prf.prfO.GetProofDepth()
-	}
+	pd = prf.pd
 
 	return
 }
 
-func (prf *Proof) GetProofDistance(toPrf *Proof) (pd int) {
-	var (
-		pdA, pdB int
-	)
-
+func (prf *Proof) GetProofDistance(toPrf *Proof) (pD int) {
 	if prf == toPrf {
-		pd = 0
+		pD = 0
 	} else if prf.IsOuter(toPrf) {
-		pdA, pdB = prf.GetProofDepth(), toPrf.GetProofDepth()
-
-		pd = pdB - pdA
+		pD = toPrf.pd - prf.pd
 	} else {
-		pd = -1
+		pD = -1
 	}
 
 	return
@@ -698,14 +672,14 @@ func (prf *Proof) NewLine(wff *fmla.Wff, rule, purp NDRule, js ...*Line) (ln *Li
 	}
 
 	ln = &Line{
-		wff:  fmla.DeepCopy(wff),
+		wff:  wff,
 		rule: rule,
 		// The justifications are worked out below:
 		j1: nil,
 		j2: nil,
 		j3: nil,
 		// The proof to which the line belongs is decided after it's inserted.
-		prf: nil,
+		prf: prf,
 		ext: false,
 	}
 
@@ -731,7 +705,7 @@ func (prf *Proof) WffIsRedundant(wff *fmla.Wff) (is bool) {
 
 	for _, prfO = range prfsO {
 		if _, is = prfO.HasWffInLines(wff); is {
-			return
+			break
 		}
 	}
 
@@ -795,70 +769,64 @@ func (prf *Proof) InsertNewLine(wff *fmla.Wff, rule, purp NDRule, js ...*Line) (
 
 func (prf *Proof) IsRedundant() (is bool) {
 	var (
-		wff, bot *fmla.Wff
 		prfsO    []*Proof
 		prfO     *Proof
+		wff, bot *fmla.Wff
 	)
 
-	// Check if the succesful result would be redundant.
-	switch prf.purp {
-	case ToIntro:
-		wff = fmla.NewBinaryWff(fmla.To, prf.lns[0].wff, prf.wffG)
+	prfsO = prf.GetOuterProofs(false)
+	prfsO = append(prfsO, prf.prfO.prfsI...)
 
-		is = prf.prfO.WffIsRedundant(wff)
-	case NegIntro:
-		wff = fmla.NewUnaryWff(fmla.Neg, prf.lns[0].wff)
-
-		is = prf.prfO.WffIsRedundant(wff)
-	case ForAllIntro:
-		if prf.pvG != 0 {
-			wff = fmla.GeneralizePred(fmla.ForAll, prf.wffG, prf.pcA, prf.pvG)
-		} else if prf.avG != 0 {
-			wff = fmla.GeneralizeArg(fmla.ForAll, prf.wffG, prf.acA, prf.avG)
-		} else {
-			panic("Illegal proof state: Neither variables are generalizable.")
+	for _, prfO = range prfsO {
+		if prfO.purp != prf.purp {
+			continue
 		}
 
-		is = prf.prfO.WffIsRedundant(wff)
-	case ExistsElim:
-		is = prf.prfO.WffIsRedundant(prf.wffG)
-	case BoxIntro:
-		wff = fmla.NewUnaryWff(fmla.Box, prf.lns[0].wff)
-
-		is = prf.prfO.WffIsRedundant(wff)
-	case DiamondElim:
-		if bot = fmla.NewAtomicWff(fmla.Bot); fmla.IsIdentical(prf.wffG, bot) {
-			wff = fmla.NewUnaryWff(fmla.Diamond, prf.lns[0].wff)
-			wff = fmla.NewUnaryWff(fmla.Neg, wff)
-		} else {
-			wff = fmla.NewUnaryWff(fmla.Diamond, prf.wffG)
-		}
-
-		is = prf.prfO.WffIsRedundant(wff)
-	default:
-		panic("Invalid proof purpose.")
-	}
-
-	if !is {
-		prfsO = prf.GetOuterProofs(false)
-		prfsO = append(prfsO, prf.prfO.prfsI...)
-
-		for _, prfO = range prfsO {
-			if prfO.purp != prf.purp {
-				continue
-			}
-
-			if !fmla.IsIdentical(prfO.lns[0].wff, prf.lns[0].wff) {
-				continue
-			}
-
-			if !fmla.IsIdentical(prfO.wffG, prf.wffG) {
-				continue
-			}
-
+		if fmla.IsIdentical(prfO.lns[0].wff, prf.lns[0].wff) && fmla.IsIdentical(prfO.wffG, prf.wffG) {
 			is = true
 
 			break
+		}
+	}
+
+	if !is {
+		// Check if the succesful result would be redundant.
+		switch prf.purp {
+		case ToIntro:
+			wff = fmla.NewBinaryWff(fmla.To, prf.lns[0].wff, prf.wffG)
+
+			is = prf.prfO.WffIsRedundant(wff)
+		case NegIntro:
+			wff = fmla.NewUnaryWff(fmla.Neg, prf.lns[0].wff)
+
+			is = prf.prfO.WffIsRedundant(wff)
+		case ForAllIntro:
+			if prf.pvG != 0 {
+				wff = fmla.GeneralizePred(fmla.ForAll, prf.wffG, prf.pcA, prf.pvG)
+			} else if prf.avG != 0 {
+				wff = fmla.GeneralizeArg(fmla.ForAll, prf.wffG, prf.acA, prf.avG)
+			} else {
+				panic("Illegal proof state: Neither variables are generalizable.")
+			}
+
+			is = prf.prfO.WffIsRedundant(wff)
+		case ExistsElim:
+			is = prf.prfO.WffIsRedundant(prf.wffG)
+		case BoxIntro:
+			wff = fmla.NewUnaryWff(fmla.Box, prf.lns[0].wff)
+
+			is = prf.prfO.WffIsRedundant(wff)
+		case DiamondElim:
+			if bot = fmla.NewAtomicWff(fmla.Bot); fmla.IsIdentical(prf.wffG, bot) {
+				wff = fmla.NewUnaryWff(fmla.Diamond, prf.lns[0].wff)
+				wff = fmla.NewUnaryWff(fmla.Neg, wff)
+			} else {
+				wff = fmla.NewUnaryWff(fmla.Diamond, prf.wffG)
+			}
+
+			is = prf.prfO.WffIsRedundant(wff)
+		default:
+			panic("Invalid proof purpose.")
 		}
 	}
 
@@ -867,7 +835,7 @@ func (prf *Proof) IsRedundant() (is bool) {
 
 func (prf *Proof) NewInnerProof(wffG *fmla.Wff, purp NDRule, ln0 *Line) (prfI *Proof) {
 	prfI = &Proof{
-		wffG: fmla.DeepCopy(wffG),
+		wffG: wffG,
 		purp: purp,
 		open: true,
 
@@ -878,10 +846,15 @@ func (prf *Proof) NewInnerProof(wffG *fmla.Wff, purp NDRule, ln0 *Line) (prfI *P
 
 		fpcs: append([]fmla.Predicate{}, prf.fpcs...),
 		facs: append([]fmla.Argument{}, prf.facs...),
+
+		pd: prf.pd + 1,
+		md: prf.md,
 	}
 
 	if ln0.rule != Assumption {
 		panic("The first line of an inner proof must be an assumption.")
+	} else {
+		ln0.prf = prfI
 	}
 
 	prfI.lns = append(prfI.lns, ln0)
@@ -894,6 +867,8 @@ func (prf *Proof) NewInnerProof(wffG *fmla.Wff, purp NDRule, ln0 *Line) (prfI *P
 		prfI.facs = append([]fmla.Argument{}, fmla.ArgConsts...)
 
 		prfI.fpcs, prfI.facs = reduceFreshConstants(prfI, ln0.wff)
+
+		prfI.md += 1
 	default:
 		prfI.fpcs, prfI.facs = reduceFreshConstants(prfI, ln0.wff)
 	}
@@ -926,7 +901,7 @@ func NewProof(wffG *fmla.Wff, wffsP ...*fmla.Wff) (prf *Proof, synB SynBreadth) 
 	)
 
 	prf = &Proof{
-		wffG: fmla.DeepCopy(wffG),
+		wffG: wffG,
 		purp: Solve,
 		open: true,
 
@@ -935,10 +910,14 @@ func NewProof(wffG *fmla.Wff, wffsP ...*fmla.Wff) (prf *Proof, synB SynBreadth) 
 		prfsI: []*Proof{},
 		prfO:  nil,
 
-		pvG:  0,
-		avG:  0,
+		pvG: 0,
+		avG: 0,
+
 		fpcs: append([]fmla.Predicate{}, fmla.PredConsts...),
 		facs: append([]fmla.Argument{}, fmla.ArgConsts...),
+
+		pd: 0,
+		md: 0,
 	}
 
 	// Force an initial TopIntro line to meet the requirement that
