@@ -3,7 +3,6 @@ package nd
 import (
 	"Deriver/fmla"
 	"Deriver/nd/pr"
-	"fmt"
 	"slices"
 )
 
@@ -169,13 +168,13 @@ func DeriveAtWeakestStrengths(wffG *fmla.Wff, wffsP ...*fmla.Wff) (drvs []*Deriv
 				}
 			}
 
-			fmt.Printf("DEBUG: Went from %d to %d proofs after succeeding at index %d.\n", lenD, len(drvs), dexD)
+			// fmt.Printf("DEBUG: Went from %d to %d proofs after succeeding at index %d.\n", lenD, len(drvs), dexD)
 
 			dexD, lenD = dexD+1, len(drvs)
 		} else {
 			drvs = slices.Delete(drvs, dexD, dexD+1)
 
-			fmt.Printf("DEBUG: Cut down %d to %d proofs after failing at index %d.\n", lenD, len(drvs), dexD)
+			// fmt.Printf("DEBUG: Cut down %d to %d proofs after failing at index %d.\n", lenD, len(drvs), dexD)
 
 			lenD -= 1
 		}
