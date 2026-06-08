@@ -2,7 +2,9 @@ package pr
 
 import (
 	"Deriver/fmla"
+	"fmt"
 	"slices"
+	"strings"
 )
 
 type Line struct {
@@ -144,11 +146,13 @@ type Proof struct {
 	pcA fmla.Predicate // The fresh predicate variable in QL subproof.
 	acA fmla.Argument  // The fresh argument variable in QL subproof.
 
-	fpcs []fmla.Predicate // Fresh predicate constants.
-	facs []fmla.Argument  // Fresh argument constants.
+	fpcs []fmla.Predicate // The proof's fresh predicate constants.
+	facs []fmla.Argument  // The proof's fresh argument constants.
 
-	pd int // Proof depth of the proof.
-	md int // Modal depth of the proof.
+	pd int // The proof's proof depth.
+	md int // The proof's modal depth.
+
+	pid string // The ID of the proof (used to check relations faster).
 }
 
 func (prf *Proof) GetWffG() (wffG *fmla.Wff) {
@@ -455,12 +459,7 @@ func (prf *Proof) HasWffInLines(wff *fmla.Wff) (lnW *Line, has bool) {
 }
 
 func (prf *Proof) IsOuter(toPrf *Proof) (is bool) {
-	switch {
-	case prf == toPrf.prfO:
-		is = true
-	case toPrf.prfO != nil:
-		is = prf.IsOuter(toPrf.prfO)
-	}
+	is = strings.HasPrefix(toPrf.pid, prf.pid)
 
 	return
 }
@@ -833,6 +832,18 @@ func (prf *Proof) IsRedundant() (is bool) {
 	return
 }
 
+func extendProofID(prf *Proof) (pid string) {
+	var (
+		lenI int
+	)
+
+	lenI = len(prf.prfsI)
+
+	pid += fmt.Sprintf("%s%c", prf.pid, rune(lenI+1))
+
+	return
+}
+
 func (prf *Proof) NewInnerProof(wffG *fmla.Wff, purp NDRule, ln0 *Line) (prfI *Proof) {
 	prfI = &Proof{
 		wffG: wffG,
@@ -849,6 +860,8 @@ func (prf *Proof) NewInnerProof(wffG *fmla.Wff, purp NDRule, ln0 *Line) (prfI *P
 
 		pd: prf.pd + 1,
 		md: prf.md,
+
+		pid: extendProofID(prf),
 	}
 
 	if ln0.rule != Assumption {
@@ -918,6 +931,8 @@ func NewProof(wffG *fmla.Wff, wffsP ...*fmla.Wff) (prf *Proof, synB SynBreadth) 
 
 		pd: 0,
 		md: 0,
+
+		pid: "",
 	}
 
 	// Force an initial TopIntro line to meet the requirement that
