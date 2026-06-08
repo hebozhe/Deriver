@@ -12,51 +12,65 @@ With respect to propositional logic inference rules, every rule in a weaker logi
 ### Implicational Propositional Logic (TPL) Rules
 
 - $\top I$:
-  - $\vdash \top$
+  - $\vdash_{TPL} \top$
 - $\to I$:
-  - $[A \dots B] \vdash A \to B$
+  - $[A \dots B] \vdash_{TPL} A \to B$
 - $\to E$:
-  - $A \to B, A \vdash B$
+  - $A \to B, A \vdash_{TPL} B$
 
 In Fitch-style proofs:
 
 - $Reit$:
-  - $A \vdash A$
+  - $A, [\dots] \vdash_{TPL} [\dots A]$
 
 ### Positive Propositional Logic (PPL) Rules
 
+Where $A/B$ replaces predicate $B$ with predicate $A$:
+
 - $\wedge I$:
-  - $A, B \vdash A \wedge B$
+  - $A, B \vdash_{PPL} A \wedge B$
 - $\wedge E$:
-  - $A \wedge B \vdash A$
-  - $A \wedge B \vdash B$
+  - $A \wedge B \vdash_{PPL} A$
+  - $A \wedge B \vdash_{PPL} B$
 - $\vee I$:
-  - $A \vdash A \vee B$
-  - $B \vdash A \vee B$
+  - $A \vdash_{PPL} A \vee B$
+  - $B \vdash_{PPL} A \vee B$
 - $\vee E$:
-  - $A \vee B, A \to C, B \to C \vdash C$
+  - $A \vee B, A \to C, B \to C \vdash_{PPL} C$
 - $\leftrightarrow I$:
-  - $A \to B, B \to A \vdash A \leftrightarrow B$
+  - $A \to B, B \to A \vdash_{PPL} A \leftrightarrow B$
 - $\leftrightarrow E$:
-  - $A \leftrightarrow B \vdash A \to B$
-  - $A \leftrightarrow B \vdash B \to A$
+  - $A \leftrightarrow B \vdash_{PPL} A \to B$
+  - $A \leftrightarrow B \vdash_{PPL} B \to A$
+- $\top E$
+  - $A, \Phi(A) \vdash_{PPL} \Phi(\top/A)$
+    - **Caveat:** $A$ is not in a subformula of a $\Box$-formula or a $\Diamond$-formula.
 
 ### Minimal Propositional Logic (MPL) Rules
 
 - $\bot I$:
-  - $A, \neg A \vdash \bot$
+  - $A, \neg A \vdash_{MPL} \bot$
 - $\neg I$:
-  - $[A \dots \bot] \vdash \neg A$
+  - $[A \dots \bot] \vdash_{MPL} \neg A$
 
 ### Intuitionistic Propositional Logic (IPL) Rules
 
 - $\bot E$:
-  - $\bot \vdash A$
+  - $\bot \vdash_{IPL} A$
 
 ### Classical Propositional Logic (CPL) Rules
 
 - $\neg E$:
-  - $\neg \neg A \vdash A$
+  - $\neg \neg A \vdash_{CPL} A$
+
+## N-ary Predicate Logic (NL)
+
+### Implicational N-ary Predicate Logic with Identity (TNLi) Rules
+
+- $=I$:
+  - $\vdash_{TNLi} t=t$
+- $=E$:
+  - $t=t', A(t) \vdash_{TNLi} A(t'/t)$
 
 ## Quantificational Logic (QL)
 
@@ -65,72 +79,72 @@ Where $a/b$ replaces argument $b$ with argument $a$, and where $A/B$ replaces pr
 ### Positive Quantificational Logic (PQL) Rules
 
 - $\forall I$:
-  - $[\top(t/x) \dots A(t)] \vdash \forall x A(x/t)$, where $t$ is arbitrary
-  - $[\top(T/X) \dots \Phi(T)] \vdash \forall X \Phi(X/T)$, where $T$ is arbitrary
+  - $[\top \dots A(t)] \vdash_{P1QL} \forall x A(x/t)$
+    - **Caveat:** $t$ is fresh to the inner proof.
+  - $[\top \dots \Phi(T)] \vdash_{P2QL} \forall X \Phi(X/T)$
+    - **Caveat:** $T$ is fresh to the inner proof.
 - $\forall E$:
-  - $\forall x A(x) \vdash A(t/x)$
-  - $\forall X \Phi(X) \vdash \Phi(A/X)$
+  - $\forall x A(x) \vdash_{P1QL} A(t/x)$
+  - $\forall X \Phi(X) \vdash_{P2QL} \Phi(A/X)$
 - $\exists I$:
-  - $A(t) \vdash \exists x A(x/t)$
-  - $\Phi(A) \vdash \exists X \Phi(X/A)$
+  - $A(t) \vdash_{P1QL} \exists x A(x/t)$
+  - $\Phi(A) \vdash_{P2QL} \exists X \Phi(X/A)$
 - $\exists E$:
-  - $\exists x A(x),[A(t/x) \dots B(\xcancel{t})] \vdash B(\xcancel{t})$, where $t$ is arbitrary
-  - $\exists X \Phi(X),[\Phi(T/X) \dots \Psi(\xcancel{T})] \vdash \Psi(\xcancel{T})$, where $T$ is arbitrary
+  - $\exists x A(x), [A(t/x) \dots B] \vdash_{P1QL} B$
+    - **Caveat:** $t$ is fresh to the inner proof and $B(\cancel{t})$.
+  - $\exists X \Phi(X), [\Phi(T/X) \dots \Psi] \vdash_{P2QL} \Psi$
+    - **Caveat:** $T$ is fresh to the inner proof and $\Psi(\cancel{T})$.
 
-## Quantificational Logic with Identity (QLi)
+## Modal Logics
 
-### Positive Quantificational Logic with Identity (PQLi) Rules
+### Positive System K (PPL+K) Rules
 
-- $=I$:
-  - $\vdash t=t$
-- $=E$:
-  - $t=t', A(t) \vdash A(t'/t)$
+- $\Box I(K)$:
+  - $[\top \dots A] \vdash_{PPL+K} \Box A$
+    - **Caveat:** $[\top \dots A]$ is an inner proof for $\Box I(K)$.
+- $\Box E(K)$:
+  - $\Box A, [\dots] \vdash_{PPL+K} [\dots A]$
+    - **Caveat:** $[\dots]$ is an inner proof for $\Box I(K)$ or $\Diamond E(K)$.
+- $\Diamond E(K)$:
+  - $\Diamond A, [A \dots B] \vdash_{PPL+K} \Diamond B$
+    - **Caveat:** $[A \dots B]$ is an inner proof for $\Diamond E(K)$.
 
-## Modal Logic (ML)
+### Minimal System K (MPL+K) Rules
 
-### Positive System K (PML+K) Rules
+- $\Box E(K)$:
+  - $\neg \Diamond A, [\dots] \vdash_{MPL+K} [\dots \neg A]$
+  - **Caveat:** $[\dots]$ is an inner proof for $\Box I(K)$ or $\Diamond E(K)$.
+- $\Diamond E(K)$:
+  - $\Diamond A, [A \dots \bot] \vdash_{MPL+K} \neg \Diamond A$
+  - **Caveat:** $[A \dots \bot]$ is an inner proof for $\Diamond E(K)$.
 
-- $\Box I$:
-  - $[\top \dots A] \vdash \Box A$, where $[\top \dots A]$ is an inner proof for $\Box I$.
-- $\Box E$:
-  - $\Box A, [\dots] \vdash [\dots A]$, where $[\dots]$ is an inner proof for $\Box I$ or $\Diamond E$.
-- $\Diamond E$:
-  - $\Diamond A, [A \dots B] \vdash \Diamond B$, where $[A \dots B]$ is an inner proof for $\Diamond E$.
+### Classical System K (CPL+K) Rules
 
-### Minimal System K (MML+K) Rules
+- $\Diamond I(K)$:
+  - $\neg \Box A \vdash_{CPL+K} \Diamond \neg A$.
 
-- $\Box E$:
-  - $\neg \Diamond A, [\dots] \vdash [\dots \neg A]$, where $[\dots]$ is an inner proof for $\Box I$ or $\Diamond E$.
-- $\Diamond E$:
-  - $\Diamond A, [A \dots \bot] \vdash \neg \Diamond A$, where $[A \dots \bot]$ is an inner proof for $\Diamond E$.
-
-### Classical System K (CML+K) Rules
-
-- $\Diamond I$:
-  - $\neg \Box \neg A \vdash \Diamond A$.
-
-### Positive System D (PML+D) Rules
+### Positive System D (PPL+D) Rules
 
 - $\Box ED$:
-  - $\Box A \vdash \Diamond A$
+  - $\Box A \vdash_{PPL+D} \Diamond A$
 
-### Positive System M (PML+M) Rules
+### Positive System M (PPL+M) Rules
 
 - $\Diamond IM$:
-  - $A \vdash \Diamond A$
+  - $A \vdash_{PPL+M} \Diamond A$
 - $\Box EM$:
-  - $\Box A \vdash A$
+  - $\Box A \vdash_{PPL+M} A$
 
-### Positive System 4 (PML+4) Rules
+### Positive System 4 (PPL+4) Rules
 
 - $\Box I4$:
-  - $\Box A \vdash \Box \Box A$
-- $\Diamond E4$:
-  - $\Diamond \Diamond A \vdash \Diamond A$
+  - $\Box A \vdash_{PPL+4} \Box \Box A$
+- $\Diamond E4$
+  - $\Diamond \Diamond A \vdash_{PPL+4} \Diamond A$
 
-### Positive System B (PML+B) Rules
+### Positive System B (PPL+B) Rules
 
 - $\Box IB$:
-  - $A \vdash \Box \Diamond A$
+  - $A \vdash_{PPL+B} \Box \Diamond A$
 - $\Diamond EB$:
-  - $\Diamond \Box A \vdash A$
+  - $\Diamond \Box A \vdash_{PPL+B} A$
