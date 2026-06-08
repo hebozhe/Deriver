@@ -3,6 +3,7 @@ package nd
 import (
 	"Deriver/fmla"
 	"Deriver/nd/pr"
+	"sync"
 	"testing"
 )
 
@@ -389,11 +390,11 @@ var tcs []testCase = []testCase{
 
 func TestNDTheorems(t *testing.T) {
 	var (
-		tc      testCase
-		wffG    *fmla.Wff
-		wffsP   []*fmla.Wff
-		drv     *Deriver
-		s, name string
+		tc          testCase
+		wffG        *fmla.Wff
+		wffsP       []*fmla.Wff
+		drv         *Deriver
+		fitch, name string
 	)
 
 	for _, tc = range tcs {
@@ -402,9 +403,9 @@ func TestNDTheorems(t *testing.T) {
 		drv = NewDeriver(tc.infS, tc.modS, wffG, wffsP...)
 
 		if !drv.DeriveAtStrength() {
-			s = drv.Prf.ConvertToFitchString()
+			fitch = drv.Prf.ConvertToFitchString()
 
-			t.Logf("\n%s", s)
+			t.Logf("\n%s", fitch)
 
 			name = pr.NameLogic(drv.InfS, drv.SynB, drv.ModS)
 
@@ -413,24 +414,100 @@ func TestNDTheorems(t *testing.T) {
 
 		drv.Prf = drv.Prf.MinimizeProof()
 
-		s = drv.Prf.ConvertToFitchString()
+		fitch = drv.Prf.ConvertToFitchString()
 
 		name = pr.NameLogic(drv.InfS, drv.SynB, drv.ModS)
 
-		t.Logf("\nPASSED! %q ⊢ %q in %s:\n%s", tc.prems, tc.goal, name, s)
+		t.Logf("\nPASSED! %q ⊢ %q in %s:\n%s", tc.prems, tc.goal, name, fitch)
 	}
 
 	t.Logf("All %d tests passed!\n", len(tcs))
 }
 
+type drvResult struct {
+	drv   *Deriver
+	goal  string
+	prems []string
+}
+
+func TestNDTheoremsForSpeed(t *testing.T) {
+	var (
+		lenT, tally int
+		resChan     chan drvResult
+		tc          testCase
+		res         drvResult
+		name, fitch string
+		wg          sync.WaitGroup
+	)
+
+	lenT = len(tcs)
+
+	resChan = make(chan drvResult, lenT)
+
+	for _, tc = range tcs {
+		wg.Add(1)
+		go func(tcN testCase) {
+			var (
+				drvN   *Deriver
+				wffG   *fmla.Wff
+				wffsP  []*fmla.Wff
+				drvRes drvResult
+			)
+
+			wffsP, wffG = ndTestParseWffs(t, tcN.prems...), ndTestParseWff(t, tcN.goal)
+
+			drvN = NewDeriver(tcN.infS, tcN.modS, wffG, wffsP...)
+
+			_ = drvN.DeriveAtStrength()
+
+			drvRes = drvResult{
+				drv:   drvN,
+				goal:  tcN.goal,
+				prems: tcN.prems,
+			}
+
+			resChan <- drvRes
+
+			wg.Done()
+		}(tc)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resChan)
+	}()
+
+	for res = range resChan {
+		name = pr.NameLogic(res.drv.InfS, res.drv.SynB, res.drv.ModS)
+
+		if !res.drv.Met {
+			t.Fatalf("FAILED! Did not derive %q from %q in %s.", res.goal, res.prems, name)
+		}
+
+		if tally += 1; lenT-tally < 5 { // Log the slowest n results.
+			t.Logf("\nPASSED! This proof was the #%d-slowest.\n", (lenT-tally)+1)
+
+			fitch = res.drv.Prf.ConvertToFitchString()
+
+			t.Logf("\nFull: %q ⊢ %q in %s:\n%s", res.prems, res.goal, name, fitch)
+
+			res.drv.Prf = res.drv.Prf.MinimizeProof()
+
+			fitch = res.drv.Prf.ConvertToFitchString()
+
+			t.Logf("\nMinimized: %q ⊢ %q in %s:\n%s", res.prems, res.goal, name, fitch)
+		}
+	}
+}
+
 func TestWeakestNDTheorems(t *testing.T) {
 	var (
-		tc        testCase
-		wffG      *fmla.Wff
-		wffsP     []*fmla.Wff
-		drvsW     []*Deriver
-		drv, drvW *Deriver
-		s, name   string
+		tc          testCase
+		wffG        *fmla.Wff
+		wffsP       []*fmla.Wff
+		drvsW       []*Deriver
+		drv, drvW   *Deriver
+		fitch, name string
 	)
 
 TESTWEAKESTTHEOREMS_OUTER:
@@ -440,9 +517,9 @@ TESTWEAKESTTHEOREMS_OUTER:
 		drv = NewDeriver(tc.infS, tc.modS, wffG, wffsP...)
 
 		if !drv.DeriveAtStrength() {
-			s = drv.Prf.ConvertToFitchString()
+			fitch = drv.Prf.ConvertToFitchString()
 
-			t.Logf("\n%s", s)
+			t.Logf("\n%s", fitch)
 
 			name = pr.NameLogic(drv.InfS, drv.SynB, drv.ModS)
 
@@ -471,20 +548,20 @@ TESTWEAKESTTHEOREMS_OUTER:
 
 		drv.Prf = drv.Prf.MinimizeProof()
 
-		s = drv.Prf.ConvertToFitchString()
+		fitch = drv.Prf.ConvertToFitchString()
 
 		name = pr.NameLogic(drv.InfS, drv.SynB, drv.ModS)
 
-		t.Logf("The test-case proof passed in %s:\n%s\n\n", name, s)
+		t.Logf("The test-case proof passed in %s:\n%s\n\n", name, fitch)
 
 		for _, drvW = range drvsW {
 			drvW.Prf = drvW.Prf.MinimizeProof()
 
-			s = drvW.Prf.ConvertToFitchString()
+			fitch = drvW.Prf.ConvertToFitchString()
 
 			name = pr.NameLogic(drvW.InfS, drvW.SynB, drvW.ModS)
 
-			t.Logf("But this proof passed in %s:\n%s\n\n", name, s)
+			t.Logf("But this proof passed in %s:\n%s\n\n", name, fitch)
 		}
 
 		t.Fatal()
