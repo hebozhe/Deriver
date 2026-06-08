@@ -149,23 +149,25 @@ var toElimFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 
 var reiterationFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 	var (
-		liPairs  iter.Seq2[*lineInfo, *lineInfo]
-		ji1, ji2 *lineInfo
-		wffG     *fmla.Wff
+		liSeq iter.Seq[*lineInfo]
+		ji1   *lineInfo
+		wffG  *fmla.Wff
+		prfsI []*pr.Proof
+		prfI  *pr.Proof
 	)
 
-	liPairs = genLineInfoPairs(drv.Prf, 0)
+	liSeq = genLineInfoSeq(drv.Prf)
 
-	for ji1, ji2 = range liPairs {
-		if ji1.prf.GetProofDistance(ji2.prf) < 1 {
-			continue
+	for ji1 = range liSeq {
+		prfsI = ji1.prf.GetInnerProofsAtModalDistance(false, 0)
+
+		for _, prfI = range prfsI {
+			if wffG = prfI.GetWffG(); !fmla.IsIdentical(ji1.wff, wffG) {
+				continue
+			}
+
+			tot += prfI.InsertNewLine(ji1.wff, pr.Reiteration, 0, ji1.ln)
 		}
-
-		if wffG = ji2.prf.GetWffG(); !fmla.IsIdentical(ji1.wff, wffG) {
-			continue
-		}
-
-		tot += ji2.prf.InsertNewLine(ji1.wff, pr.Reiteration, 0, ji1.ln)
 	}
 
 	return
@@ -179,6 +181,7 @@ var wedgeIntroFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 		liPairs     iter.Seq2[*lineInfo, *lineInfo]
 		prf         *pr.Proof
 		ji1, ji2    *lineInfo
+		ok          bool
 		wffP, wff   *fmla.Wff
 	)
 
@@ -192,6 +195,22 @@ var wedgeIntroFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 		liPairs = genLineInfoPairs(prf, 0)
 
 		for ji1, ji2 = range liPairs {
+			if _, _, ok = prf.IsReachable(ji1.prf); !ok {
+				continue
+			}
+
+			if _, _, ok = prf.IsReachable(ji2.prf); !ok {
+				continue
+			}
+
+			if ji1.prf.GetModalDistance(prf) != 0 && prf.GetModalDistance(ji1.prf) != 0 {
+				continue
+			}
+
+			if ji2.prf.GetModalDistance(prf) != 0 && prf.GetModalDistance(ji2.prf) != 0 {
+				continue
+			}
+
 			if wff = fmla.NewBinaryWff(fmla.Wedge, ji1.wff, ji1.wff); fmla.HasSubformula(wffP, wff) {
 				tot += ji1.prf.InsertNewLine(wff, pr.WedgeIntro, 0, ji1.ln, ji1.ln)
 			}
@@ -246,6 +265,7 @@ var veeIntroFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 		ji1                   *lineInfo
 		wffP, subL, subR, wff *fmla.Wff
 		wffs                  []*fmla.Wff
+		ok                    bool
 	)
 
 	prfWffPairs = genProofWffPairs(drv.Prf)
@@ -268,6 +288,14 @@ var veeIntroFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 
 			for ji1 = range liSeq {
 				if !fmla.IsIdentical(ji1.wff, subL) && !fmla.IsIdentical(ji1.wff, subR) {
+					continue
+				}
+
+				if _, _, ok = prf.IsReachable(ji1.prf); !ok {
+					continue
+				}
+
+				if ji1.prf.GetModalDistance(prf) != 0 && prf.GetModalDistance(ji1.prf) != 0 {
 					continue
 				}
 
@@ -664,7 +692,7 @@ func helpBotIntroFunc(drv *Deriver) (tot int) {
 
 			continue
 		// case mop == fmla.Box && pr.Classical == drv.InfS: // At least CPL+K...
-		case mopA == fmla.Diamond && pr.Positive < drv.InfS && pr.IsAllowedModality(pr.DiamondElim, drv.ModS): // At least MPL+K...
+		case mopA == fmla.Diamond && pr.Positive < drv.InfS && pr.HasModality(drv.ModS, pr.ModalK): // At least MPL+K...
 			// ¬◇A ⊢ □¬A
 			wffG = fmla.FillTemplateWithLocales("□¬(?)", li.wff, "LL!")
 
@@ -861,6 +889,8 @@ var forAllIntroFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 
 			if j2, has = prfI.HasWffInLines(wffG); !has {
 				continue
+			} else {
+				_ = prfI.MinimizeProof()
 			}
 
 			if pc, pv, ok = prfI.GetQLInnerProofPredicates(); ok {
@@ -920,12 +950,6 @@ func helpForAllElimFunc(drv *Deriver) (tot int) {
 					tot += li.prf.InsertInnerProofs(prfI) + drv.pushAssumptions(wffG, prfI)
 				}
 			}
-		} else if wffA, _ = fmla.GetWffSubformulae(li.wff); !fmla.HasFreeVars(wffA) {
-			wffG = li.prf.GetWffG()
-
-			if prfI, ok = makeNewInnerProof(wffA, wffG, li.prf, pr.ToIntro); ok {
-				tot += li.prf.InsertInnerProofs(prfI) + drv.pushAssumptions(wffG, prfI)
-			}
 		}
 
 		_ = li.ln.SetExtended(true)
@@ -949,47 +973,65 @@ var forAllElimFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 	liPairs = genLineInfoPairs(drv.Prf, 0)
 
 	for ji1, ji2 = range liPairs {
-		switch {
-		case fmla.GetWffMop(ji1.wff) == fmla.ForAll:
-			pcs1, pcs2 = ji1.prf.GetUsedPredicates(), ji2.prf.GetUsedPredicates()
-			acs1, acs2 = ji1.prf.GetUsedArguments(), ji2.prf.GetUsedArguments()
+		if fmla.GetWffMop(ji1.wff) != fmla.ForAll && fmla.GetWffMop(ji2.wff) != fmla.ForAll {
+			continue
+		}
 
-			pcs, acs = append(pcs1, pcs2...), append(acs1, acs2...)
+		if fmla.GetWffMop(ji1.wff) == fmla.ForAll {
+			if wff, _ = fmla.GetWffSubformulae(ji1.wff); !fmla.HasFreeVars(wff) {
+				tot += ji1.prf.InsertNewLine(wff, pr.ForAllElim, 0, ji1.ln)
 
-			wffsToWffsI = fmla.GetAllInstantiations(ji1.wff, pcs, acs)
+				_ = ji1.ln.SetExtended(true)
+			} else {
+				pcs1, pcs2 = ji1.prf.GetUsedPredicates(), ji2.prf.GetUsedPredicates()
+				acs1, acs2 = ji1.prf.GetUsedArguments(), ji2.prf.GetUsedArguments()
 
-			for wff, wffsI = range wffsToWffsI {
-				if !fmla.IsIdentical(wff, ji1.wff) {
-					continue
-				}
+				pcs, acs = append(pcs1, pcs2...), append(acs1, acs2...)
 
-				for _, wffI = range wffsI {
-					tot += ji2.prf.InsertNewLine(wffI, pr.ForAllElim, 0, ji1.ln)
-				}
+				wffsToWffsI = fmla.GetAllInstantiations(ji1.wff, pcs, acs)
 
-				if lenI = len(wffsI); 0 < lenI && ji1.prf == ji2.prf {
-					_ = ji1.ln.SetExtended(true)
+				for wff, wffsI = range wffsToWffsI {
+					if !fmla.IsIdentical(wff, ji1.wff) {
+						continue
+					}
+
+					for _, wffI = range wffsI {
+						tot += ji2.prf.InsertNewLine(wffI, pr.ForAllElim, 0, ji1.ln)
+					}
+
+					if lenI = len(wffsI); 0 < lenI && ji1.prf == ji2.prf {
+						_ = ji1.ln.SetExtended(true)
+					}
 				}
 			}
-		case fmla.GetWffMop(ji2.wff) == fmla.ForAll:
-			pcs1, pcs2 = ji1.prf.GetUsedPredicates(), ji2.prf.GetUsedPredicates()
-			acs1, acs2 = ji1.prf.GetUsedArguments(), ji2.prf.GetUsedArguments()
+		}
 
-			pcs, acs = append(pcs1, pcs2...), append(acs1, acs2...)
+		// MOVED OUTSIDE: check ji2 independently of ji1
+		if fmla.GetWffMop(ji2.wff) == fmla.ForAll {
+			if wff, _ = fmla.GetWffSubformulae(ji2.wff); !fmla.HasFreeVars(wff) {
+				tot += ji2.prf.InsertNewLine(wff, pr.ForAllElim, 0, ji2.ln)
 
-			wffsToWffsI = fmla.GetAllInstantiations(ji2.wff, pcs, acs)
+				_ = ji2.ln.SetExtended(true)
+			} else {
+				pcs1, pcs2 = ji1.prf.GetUsedPredicates(), ji2.prf.GetUsedPredicates()
+				acs1, acs2 = ji1.prf.GetUsedArguments(), ji2.prf.GetUsedArguments()
 
-			for wff, wffsI = range wffsToWffsI {
-				if !fmla.IsIdentical(wff, ji2.wff) {
-					continue
-				}
+				pcs, acs = append(pcs1, pcs2...), append(acs1, acs2...)
 
-				for _, wffI = range wffsI {
-					tot += ji2.prf.InsertNewLine(wffI, pr.ForAllElim, 0, ji2.ln)
-				}
+				wffsToWffsI = fmla.GetAllInstantiations(ji2.wff, pcs, acs)
 
-				if lenI = len(wffsI); 0 < lenI {
-					_ = ji2.ln.SetExtended(true)
+				for wff, wffsI = range wffsToWffsI {
+					if !fmla.IsIdentical(wff, ji2.wff) {
+						continue
+					}
+
+					for _, wffI = range wffsI {
+						tot += ji2.prf.InsertNewLine(wffI, pr.ForAllElim, 0, ji2.ln)
+					}
+
+					if lenI = len(wffsI); 0 < lenI {
+						_ = ji2.ln.SetExtended(true)
+					}
 				}
 			}
 		}
@@ -1269,7 +1311,7 @@ var boxElimFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 		if fmla.GetWffMop(ji1.wff) == fmla.Box {
 			wff, _ = fmla.GetWffSubformulae(ji1.wff)
 
-			tot += ji2.prf.InsertNewLine(wff, pr.BoxElim, 0, ji1.ln)
+			tot += ji2.prf.InsertNewLine(wff, pr.BoxElimC, 0, ji1.ln)
 
 			continue
 		}
@@ -1282,7 +1324,7 @@ var boxElimFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 			wff, _ = fmla.GetWffSubformulae(subL)
 			wff = fmla.NewUnaryWff(fmla.Neg, wff)
 
-			tot += ji2.prf.InsertNewLine(wff, pr.BoxElim, 0, ji1.ln)
+			tot += ji2.prf.InsertNewLine(wff, pr.BoxElimW, 0, ji1.ln)
 		}
 	}
 
@@ -1303,7 +1345,7 @@ func helpDiamondElimFunc(drv *Deriver) (tot int) {
 	liSeq = genLineInfoSeq(drv.Prf)
 
 	for li = range liSeq {
-		if fmla.GetWffMop(li.wff) != fmla.Diamond || li.rule == pr.DiamondElim {
+		if li.ln.IsExtended() || fmla.GetWffMop(li.wff) != fmla.Diamond || li.rule == pr.DiamondElim {
 			continue
 		}
 
@@ -1346,6 +1388,8 @@ func helpDiamondElimFunc(drv *Deriver) (tot int) {
 				}
 			}
 		}
+
+		_ = li.ln.SetExtended(true)
 	}
 
 	return
@@ -1406,26 +1450,48 @@ var diamondElimFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 
 var diamondIntroFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 	var (
-		liSeq iter.Seq[*lineInfo]
-		ji1   *lineInfo
-		s     string
-		wff   *fmla.Wff
+		liSeq           iter.Seq[*lineInfo]
+		ji1             *lineInfo
+		s               string
+		lenL            int
+		lnL             *pr.Line
+		wff, wffA, wffG *fmla.Wff
+		prfI            *pr.Proof
+		ok              bool
 	)
 
 	liSeq = genLineInfoSeq(drv.Prf)
 
 	for ji1 = range liSeq {
-		if fmla.GetWffMop(ji1.wff) != fmla.Neg {
+		if s = fmla.GetWffString(ji1.wff); !strings.HasPrefix(s, "¬□") {
 			continue
 		}
 
-		if s = fmla.GetWffString(ji1.wff); !strings.HasPrefix(s, "¬□¬") {
-			continue
+		wff = fmla.FillTemplateWithLocales("◇¬(?)", ji1.wff, "LL!")
+
+		if 0 < ji1.prf.InsertNewLine(wff, pr.DiamondIntro, 0, ji1.ln) {
+			tot += 1
+
+			if s = fmla.GetWffString(wff); strings.HasPrefix(s, "◇¬¬") {
+				lenL = ji1.prf.CountLines()
+
+				lnL = ji1.prf.GetLineAtIndex(lenL - 1)
+
+				wffA = lnL.GetWff()
+				wffA, _ = fmla.GetWffSubformulae(wff)
+
+				for s = strings.TrimPrefix(s, "◇¬¬"); strings.HasPrefix(s, "¬¬"); {
+					s = strings.TrimPrefix(s, "¬¬")
+				}
+
+				wffG, _ = fmla.ParseStringToWff(s)
+
+				if prfI, ok = makeNewInnerProof(wffA, wffG, ji1.prf, pr.DiamondElim, lnL); ok {
+					tot += ji1.prf.InsertInnerProofs(prfI)
+				}
+			}
 		}
 
-		wff = fmla.FillTemplateWithLocales("◇(?)", ji1.wff, "LLL!")
-
-		tot += ji1.prf.InsertNewLine(wff, pr.DiamondIntro, 0, ji1.ln)
 	}
 
 	return
@@ -1456,36 +1522,32 @@ var elimDFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 
 var introMFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 	var (
-		prfWffPairs     iter.Seq2[*pr.Proof, *fmla.Wff]
-		prf             *pr.Proof
-		wffG, wffP, wff *fmla.Wff
-		maxOps          uint
-		liSeq           iter.Seq[*lineInfo]
-		ji1             *lineInfo
+		liSeq iter.Seq[*lineInfo]
+		ji1   *lineInfo
+		wff   *fmla.Wff
+		depsJ map[*pr.Line]bool
+		depJ  *pr.Line
 	)
 
-	prfWffPairs = genProofWffPairs(drv.Prf)
+	liSeq = genLineInfoSeq(drv.Prf)
 
-	for prf, wffP = range prfWffPairs {
-		if !fmla.HasOp(wffP, fmla.Diamond) {
+INTROMFUNC_OUTER:
+	for ji1 = range liSeq {
+		if ji1.rule == pr.IntroM {
 			continue
 		}
 
-		wffG = prf.GetWffG()
+		depsJ = ji1.ln.GetJustificationsDependencies()
 
-		maxOps = fmla.CountOps(wffG, fmla.Box) + fmla.CountOps(wffG, fmla.Diamond) + 1
-
-		liSeq = genLineInfoSeq(prf)
-
-		for ji1 = range liSeq {
-			if maxOps < fmla.CountOps(ji1.wff, fmla.Box)+fmla.CountOps(ji1.wff, fmla.Diamond)+1 {
-				continue
-			}
-
-			if wff = fmla.NewUnaryWff(fmla.Diamond, ji1.wff); fmla.HasSubformula(wffP, wff) {
-				tot += ji1.prf.InsertNewLine(wff, pr.IntroM, 0, ji1.ln)
+		for depJ = range depsJ {
+			if depJ.GetRule() == pr.IntroM {
+				continue INTROMFUNC_OUTER
 			}
 		}
+
+		wff = fmla.NewUnaryWff(fmla.Diamond, ji1.wff)
+
+		tot += ji1.prf.InsertNewLine(wff, pr.IntroM, 0, ji1.ln)
 	}
 
 	return
@@ -1515,51 +1577,32 @@ var elimMFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 
 var intro4Func ndRuleFunc = func(drv *Deriver) (tot int) {
 	var (
-		prfWffPairs     iter.Seq2[*pr.Proof, *fmla.Wff]
-		prf             *pr.Proof
-		prfsI           []*pr.Proof
-		wffG, wffP, wff *fmla.Wff
-		maxOps          uint
-		liSeq           iter.Seq[*lineInfo]
-		ji1             *lineInfo
+		liSeq iter.Seq[*lineInfo]
+		ji1   *lineInfo
+		wff   *fmla.Wff
+		depsJ map[*pr.Line]bool
+		depJ  *pr.Line
 	)
 
-	prfWffPairs = genProofWffPairs(drv.Prf)
+	liSeq = genLineInfoSeq(drv.Prf)
 
-	for prf, wffP = range prfWffPairs {
-		if !fmla.HasOp(wffP, fmla.Box) {
+INTRO4FUNC_OUTER:
+	for ji1 = range liSeq {
+		if fmla.GetWffMop(ji1.wff) != fmla.Box || ji1.rule == pr.Intro4 {
 			continue
 		}
 
-		wffG = prf.GetWffG()
+		depsJ = ji1.ln.GetJustificationsDependencies()
 
-		maxOps = fmla.CountOps(wffG, fmla.Box) + fmla.CountOps(wffG, fmla.Diamond) + 1
-
-		liSeq = genLineInfoSeq(prf)
-
-		for ji1 = range liSeq {
-			if fmla.GetWffMop(ji1.wff) != fmla.Box {
-				continue
-			}
-
-			if maxOps < fmla.CountOps(ji1.wff, fmla.Box)+fmla.CountOps(ji1.wff, fmla.Diamond)+1 {
-				continue
-			}
-
-			if wff = fmla.NewUnaryWff(fmla.Box, ji1.wff); fmla.HasSubformula(wffP, wff) {
-				tot += ji1.prf.InsertNewLine(wff, pr.Intro4, 0, ji1.ln)
-			} else if ji1.ln.GetRule() == pr.Intro4 {
-				continue
-			}
-
-			prfsI = ji1.prf.GetInnerProofsAtModalDistance(false, 1)
-
-			for range prfsI {
-				tot += ji1.prf.InsertNewLine(wff, pr.Intro4, 0, ji1.ln)
-
-				break
+		for depJ = range depsJ {
+			if depJ.GetRule() == pr.Intro4 {
+				continue INTRO4FUNC_OUTER
 			}
 		}
+
+		wff = fmla.NewUnaryWff(fmla.Box, ji1.wff)
+
+		tot += ji1.prf.InsertNewLine(wff, pr.Intro4, 0, ji1.ln)
 	}
 
 	return
@@ -1589,50 +1632,32 @@ var elim4Func ndRuleFunc = func(drv *Deriver) (tot int) {
 
 var introBFunc ndRuleFunc = func(drv *Deriver) (tot int) {
 	var (
-		prfWffPairs     iter.Seq2[*pr.Proof, *fmla.Wff]
-		prf             *pr.Proof
-		prfsI           []*pr.Proof
-		wffG, wffP, wff *fmla.Wff
-		maxOps          uint
-		liSeq           iter.Seq[*lineInfo]
-		ji1             *lineInfo
+		liSeq iter.Seq[*lineInfo]
+		ji1   *lineInfo
+		wff   *fmla.Wff
+		depsJ map[*pr.Line]bool
+		depJ  *pr.Line
 	)
 
-	prfWffPairs = genProofWffPairs(drv.Prf)
+	liSeq = genLineInfoSeq(drv.Prf)
 
-	for prf, wffP = range prfWffPairs {
-		if !fmla.HasOp(wffP, fmla.Box) || !fmla.HasOp(wffP, fmla.Diamond) {
+INTROBFUNC_OUTER:
+	for ji1 = range liSeq {
+		if ji1.rule == pr.IntroB {
 			continue
 		}
 
-		wffG = prf.GetWffG()
+		depsJ = ji1.ln.GetJustificationsDependencies()
 
-		maxOps = fmla.CountOps(wffG, fmla.Box) + fmla.CountOps(wffG, fmla.Diamond) + 1
-
-		liSeq = genLineInfoSeq(prf)
-
-		for ji1 = range liSeq {
-			if maxOps < fmla.CountOps(ji1.wff, fmla.Box)+fmla.CountOps(ji1.wff, fmla.Diamond)+2 {
-				continue
-			}
-
-			wff = fmla.NewUnaryWff(fmla.Diamond, ji1.wff)
-			wff = fmla.NewUnaryWff(fmla.Box, wff)
-
-			if fmla.HasSubformula(wffP, wff) {
-				tot += ji1.prf.InsertNewLine(wff, pr.IntroB, 0, ji1.ln)
-			} else if ji1.ln.GetRule() == pr.IntroB {
-				continue
-			}
-
-			prfsI = ji1.prf.GetInnerProofsAtModalDistance(false, 1)
-
-			for range prfsI {
-				tot += ji1.prf.InsertNewLine(wff, pr.IntroB, 0, ji1.ln)
-
-				break
+		for depJ = range depsJ {
+			if depJ.GetRule() == pr.IntroB {
+				continue INTROBFUNC_OUTER
 			}
 		}
+
+		wff = fmla.FillTemplate("□◇(?)", ji1.wff)
+
+		tot += ji1.prf.InsertNewLine(wff, pr.IntroB, 0, ji1.ln)
 	}
 
 	return
@@ -1691,6 +1716,13 @@ func pushRules(drv *Deriver) (tot int) {
 		}
 	}
 
+	if pr.IsRuleForSyntacticBreadth(pr.EqualsIntro, drv.SynB) { // At least n-ary predicate logic with identity...
+		if pr.NoInference < drv.InfS { // At least Implicational...
+			tot += equalsIntroFunc(drv) // Zero premises.
+			tot += equalsElimFunc(drv)  // Two premises.
+		}
+	}
+
 	if pr.IsRuleForSyntacticBreadth(pr.ForAllIntro, drv.SynB) { // At least quantificational...
 		if pr.Implicational < drv.InfS { // At least Positive...
 			tot += forAllElimFunc(drv) + existsIntroFunc(drv) // One premise.
@@ -1699,15 +1731,8 @@ func pushRules(drv *Deriver) (tot int) {
 		}
 	}
 
-	if pr.IsRuleForSyntacticBreadth(pr.EqualsIntro, drv.SynB) { // At least quantificational with identity...
-		if pr.Implicational < drv.InfS { // At least Positive...
-			tot += equalsIntroFunc(drv) // Zero premises.
-			tot += equalsElimFunc(drv)  // Two premises.
-		}
-	}
-
 	if pr.IsRuleForSyntacticBreadth(pr.BoxIntro, drv.SynB) { // At least modal...
-		if pr.IsAllowedModality(pr.BoxIntro, drv.ModS) { // At least K...
+		if pr.HasModality(drv.ModS, pr.ModalK) { // At least K...
 			if pr.Implicational < drv.InfS { // At least Positive...
 				tot += boxElimFunc(drv)     // One premise.
 				tot += boxIntroFunc(drv)    // Two premises.
@@ -1719,25 +1744,25 @@ func pushRules(drv *Deriver) (tot int) {
 			}
 		}
 
-		if pr.IsAllowedModality(pr.ElimD, drv.ModS) { // At least D...
+		if pr.HasModality(drv.ModS, pr.ModalD) { // At least D...
 			if pr.Implicational < drv.InfS { // At least Positive...
 				tot += elimDFunc(drv) // One premise.
 			}
 		}
 
-		if pr.IsAllowedModality(pr.IntroM, drv.ModS) { // At least M...
+		if pr.HasModality(drv.ModS, pr.ModalM) { // At least M...
 			if pr.Implicational < drv.InfS { // At least Positive...
 				tot += elimMFunc(drv) + introMFunc(drv) // One premise.
 			}
 		}
 
-		if pr.IsAllowedModality(pr.Intro4, drv.ModS) { // At least K...
+		if pr.HasModality(drv.ModS, pr.Modal4) { // At least 4...
 			if pr.Implicational < drv.InfS { // At least Positive...
 				tot += elim4Func(drv) + intro4Func(drv) // One premise.
 			}
 		}
 
-		if pr.IsAllowedModality(pr.ElimB, drv.ModS) { // At least B...
+		if pr.HasModality(drv.ModS, pr.ModalB) { // At least B...
 			if pr.Implicational < drv.InfS { // At least Positive...
 				tot += elimBFunc(drv) + introBFunc(drv) // One premise.
 			}
