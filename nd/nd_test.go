@@ -104,15 +104,15 @@ var tcs []testCase = []testCase{
 	{[]string{"∃u∃vAuv"}, "∃v∃uAvu", pr.Positive, pr.NoModality},       // ExistsElim, ExistsIntro
 	{[]string{"∃u∃v∃wAuvw"}, "∃w∃v∃uAuvw", pr.Positive, pr.NoModality}, // ExistsElim, ExistsIntro
 	{[]string{"∃u∃v∃wAuvw"}, "∃w∃v∃uAwvu", pr.Positive, pr.NoModality}, // ExistsElim, ExistsIntro
-	// Positive 1st-Order Predicate Logic with Identity (PNLi)...
-	{nil, "a=a", pr.Positive, pr.NoModality},                    // EqualsIntro
-	{[]string{"a=b", "Aa"}, "Ab", pr.Positive, pr.NoModality},   // EqualsElim
-	{[]string{"a=b", "Aaa"}, "Aab", pr.Positive, pr.NoModality}, // EqualsElim
-	{[]string{"a=b", "Aaa"}, "Aba", pr.Positive, pr.NoModality}, // EqualsElim
-	{[]string{"a=b", "Aaa"}, "Abb", pr.Positive, pr.NoModality}, // EqualsElim
-	{[]string{"a=b"}, "b=a", pr.Positive, pr.NoModality},        // EqualsIntro, EqualsElim
-	{[]string{"a=b", "b=c"}, "a=c", pr.Positive, pr.NoModality}, // EqualsIntro, EqualsElim
-	{[]string{"a=b", "b=c"}, "c=a", pr.Positive, pr.NoModality}, // EqualsIntro, EqualsElim
+	// Implicational 1st-Order Predicate Logic with Identity (PNLi)...
+	{nil, "a=a", pr.Implicational, pr.NoModality},                    // EqualsIntro
+	{[]string{"a=b", "Aa"}, "Ab", pr.Implicational, pr.NoModality},   // EqualsElim
+	{[]string{"a=b", "Aaa"}, "Aab", pr.Implicational, pr.NoModality}, // EqualsElim
+	{[]string{"a=b", "Aaa"}, "Aba", pr.Implicational, pr.NoModality}, // EqualsElim
+	{[]string{"a=b", "Aaa"}, "Abb", pr.Implicational, pr.NoModality}, // EqualsElim
+	{[]string{"a=b"}, "b=a", pr.Implicational, pr.NoModality},        // EqualsIntro, EqualsElim
+	{[]string{"a=b", "b=c"}, "a=c", pr.Implicational, pr.NoModality}, // EqualsIntro, EqualsElim
+	{[]string{"a=b", "b=c"}, "c=a", pr.Implicational, pr.NoModality}, // EqualsIntro, EqualsElim
 	// Positive Propositional Modal Logic K (PPL+K)...
 	{nil, "□⊤", pr.Positive, pr.ModalK},
 	{[]string{"□A", "□(A→B)"}, "□B", pr.Positive, pr.ModalK},
@@ -122,6 +122,8 @@ var tcs []testCase = []testCase{
 	{[]string{"◇⊥"}, "⊥", pr.Minimal, pr.ModalK},
 	// Classical Propositional Modal Logic K (CPL+K)...
 	{[]string{"¬□A"}, "◇¬A", pr.Classical, pr.ModalK},
+	{[]string{"¬□¬A"}, "◇¬¬A", pr.Classical, pr.ModalK},
+	{[]string{"¬□¬A"}, "◇A", pr.Classical, pr.ModalK},
 	// Positive Propositional Modal Logic D (PPL+D)...
 	{[]string{"□A"}, "◇A", pr.Positive, pr.ModalD},
 	// Positive Propositional Modal Logic M (PPL+M)...
@@ -225,6 +227,7 @@ var tcs []testCase = []testCase{
 	{nil, "(A→¬B)→(B→¬A)", pr.Minimal, pr.NoModality},          // Contraposition
 	{nil, "(A→B)→(¬B→¬A)", pr.Minimal, pr.NoModality},          // ¬-Contraposition LR
 	{nil, "¬(A→B)→(A→¬B)", pr.Minimal, pr.NoModality},          // Distribution of ¬→ OI-→ (no IO)
+	{nil, "(¬¬A∧¬B)→¬(A→B)", pr.Minimal, pr.NoModality},        // Distribution of ¬→ IO-∧
 	{nil, "(A→B)→(¬¬A→¬¬B)", pr.Minimal, pr.NoModality},        // Double Contraposition LR
 	{nil, "(¬A→¬B)→(¬¬B→¬¬A)", pr.Minimal, pr.NoModality},      // ¬¬-Contraposition LR
 	{nil, "(¬¬B→¬¬A)→(¬A→¬B)", pr.Minimal, pr.NoModality},      // ¬¬-Contraposition RL
@@ -232,6 +235,7 @@ var tcs []testCase = []testCase{
 	{nil, "(A→B)→(¬(B∧C)→¬(A∧C))", pr.Minimal, pr.NoModality},  // Monotonicity of Negated Conjunction
 	{nil, "(A→(B∨C))→(¬B→(¬C→¬A))", pr.Minimal, pr.NoModality}, // Implied Disjunct Contraposition
 	{nil, "¬(A↔B)→((A→¬B)∧(B→¬A))", pr.Minimal, pr.NoModality}, // Distribution of ¬↔ OI
+	{nil, "(¬(A→B)∨¬(B→A))→¬(A↔B)", pr.Minimal, pr.NoModality}, // Distribution of ¬↔ IO-∨
 	// IPL...
 	{nil, "⊥→A", pr.Intuitionistic, pr.NoModality},                    // Explosion
 	{nil, "¬A→(A→B)", pr.Intuitionistic, pr.NoModality},               // Strengthening
@@ -239,10 +243,8 @@ var tcs []testCase = []testCase{
 	{nil, "((A→B)→A)→¬¬A", pr.Intuitionistic, pr.NoModality},          // Weak Peirce's Law
 	{nil, "¬¬(((A→B)→A)→A)", pr.Intuitionistic, pr.NoModality},        // Glivenko's Peirce's Law
 	{nil, "¬(A→B)→(¬¬A∧¬B)", pr.Intuitionistic, pr.NoModality},        // Distribution of ¬→ OI-∧
-	{nil, "(¬¬A∧¬B)→¬(A→B)", pr.Intuitionistic, pr.NoModality},        // Distribution of ¬→ IO-∧
 	{nil, "¬(A↔B)→(¬A↔¬¬B)", pr.Intuitionistic, pr.NoModality},        // Distribution of ¬↔ OI (no IO)
 	{nil, "(¬¬A→¬¬B)→¬¬(A→B)", pr.Intuitionistic, pr.NoModality},      // Distribution of ¬¬→ IO
-	{nil, "(¬(A→B)∨¬(B→A))→¬(A↔B)", pr.Intuitionistic, pr.NoModality}, // Distribution of ¬↔ IO-∨
 	{nil, "(¬¬A∨¬A)→(¬¬A∨(¬¬A→A))", pr.Intuitionistic, pr.NoModality}, // Rieger-Nishimura Upper Lattice Bound
 	// CPL...
 	{nil, "¬¬A→A", pr.Classical, pr.NoModality},                           // ¬¬-Elim
@@ -294,7 +296,7 @@ var tcs []testCase = []testCase{
 	{nil, "∃u(Au∧Bu)→(∃uAu∧∃uBu)", pr.Positive, pr.NoModality},                    // Distribution of ∃∨ OI (no IO)
 	{nil, "∀u(Au→Bu)→(∀uAu→∀uBu)", pr.Positive, pr.NoModality},                    // Distribution of ∀→ OI-∀ (no IO)
 	{nil, "∀u(Au→Bu)→(∃uAu→∃uBu)", pr.Positive, pr.NoModality},                    // Distribution of ∀→ OI-∃ (no IO)
-	{nil, "∃u(Au→Bu)→(∀uAu→∃uBu)", pr.Positive, pr.NoModality},                    // Distribution of ∃→ OI (no IO)
+	{nil, "∃u(Au→Bu)→(∀uAu→∃uBu)", pr.Positive, pr.NoModality},                    // Distribution of ∃→ OI
 	{nil, "(∃uAu→∀uBu)→∀u(Au→Bu)", pr.Positive, pr.NoModality},                    // Distribution of ∀→ IO-∃∀ (no OI)
 	{nil, "(∀u(Au→Bu)∧∃u(Cu∧Au))→∃u(Cu∧Bu)", pr.Positive, pr.NoModality},          // Darii (AII - 1st Fig.)
 	{nil, "(∀u(Au→Bu)∧∀u(Bu→Cu))→∀u(Au→Cu)", pr.Positive, pr.NoModality},          // Barbara (AAA - 1st Fig.)
@@ -319,19 +321,21 @@ var tcs []testCase = []testCase{
 	{nil, "(∀u(Au→Bu)∧∀u(Bu→¬Au))→(∃uAu→∀u(Cu→¬Au))", pr.Minimal, pr.NoModality}, // Camenes (AEE - 4th Fig.)
 	{nil, "(∀u(Au→¬Bu)∧∀u(Bu→Cu))→(∃uBu→∃u(Cu∧¬Au))", pr.Minimal, pr.NoModality}, // Fesapo (EAO - 4th Fig.)
 	// C1QL...
-	{nil, "¬∀uAu→∃u¬Au", pr.Classical, pr.NoModality},       // Distribution of ¬∀ OI
-	{nil, "∃u(Au→∀vAv)", pr.Classical, pr.NoModality},       // The Drinker Paradox →∀
-	{nil, "∀u(Au∨B)→(∀uAu∨B)", pr.Classical, pr.NoModality}, // Confinement of ∀∨ OI
-	{nil, "(∀uAu→B)→∃u(Au→B)", pr.Classical, pr.NoModality}, // Confinement of ∃→ IO-∀L
+	{nil, "¬∀uAu→∃u¬Au", pr.Classical, pr.NoModality},           // Distribution of ¬∀ OI
+	{nil, "∃u(Au→∀vAv)", pr.Classical, pr.NoModality},           // The Drinker Paradox →∀
+	{nil, "∀u(Au∨B)→(∀uAu∨B)", pr.Classical, pr.NoModality},     // Confinement of ∀∨ OI
+	{nil, "(∀uAu→B)→∃u(Au→B)", pr.Classical, pr.NoModality},     // Confinement of ∃→ IO-∀L
+	{nil, "(∀uAu→∃uBu)→∃u(Au→Bu)", pr.Classical, pr.NoModality}, // Distribution of ∃→ IO
 
 	// == Identity Logic Theorems ==
+	// TNLi...
+	{nil, "a=b→b=a", pr.Implicational, pr.NoModality},       // Identity Symmetry
+	{nil, "Aa→(a=b→Ab)", pr.Implicational, pr.NoModality},   // 1st-Order Indiscernibility
+	{nil, "a=b→(b=c→a=c)", pr.Implicational, pr.NoModality}, // Identity Transitivity
+	{nil, "a=b→(Aac→Abc)", pr.Implicational, pr.NoModality}, // Relational Indiscernibility L
+	{nil, "a=b→(Aca→Acb)", pr.Implicational, pr.NoModality}, // Relational Indiscernibility R
 	// PNLi...
-	{nil, "a=b→b=a", pr.Positive, pr.NoModality},       // Identity Symmetry
-	{nil, "(a=b∧b=c)→a=c", pr.Positive, pr.NoModality}, // Identity Transitivity
-	{nil, "(Aa∧a=b)→Ab", pr.Positive, pr.NoModality},   // 1st-Order Indiscernibility
-	{nil, "a=b→(Aa↔Ab)", pr.Positive, pr.NoModality},   // Indiscernibility of Identicals Instance
-	{nil, "a=b→(Aac→Abc)", pr.Positive, pr.NoModality}, // Relational Indiscernibility L
-	{nil, "a=b→(Aca→Acb)", pr.Positive, pr.NoModality}, // Relational Indiscernibility R
+	{nil, "a=b→(Aa↔Ab)", pr.Positive, pr.NoModality}, // Indiscernibility of Identicals Instance
 
 	// == Second-Order Logic Theorems ==
 	// P2QL...
@@ -342,21 +346,22 @@ var tcs []testCase = []testCase{
 
 	// == Propositional Modal Logic Theorems ==
 	// PPL+K...
-	{nil, "□(A∧B)→(□A∧□B)", pr.Positive, pr.ModalK},  // Distribution of □∧ OI
-	{nil, "(□A∧□B)→□(A∧B)", pr.Positive, pr.ModalK},  // Distribution of □∧ IO
-	{nil, "(□A∨□B)→□(A∨B)", pr.Positive, pr.ModalK},  // Distribution of □∨ IO (no OI)
-	{nil, "◇(A→B)↔(□A→◇B)", pr.Classical, pr.ModalK}, // Distribution of ◇→ OI
-	{nil, "□(A→B)→(□A→□B)", pr.Positive, pr.ModalK},  // CK Axiom 1
-	{nil, "□(A→B)→(◇A→◇B)", pr.Positive, pr.ModalK},  // CK Axiom 2
-	{nil, "◇(A∧B)→(◇A∧◇B)", pr.Positive, pr.ModalK},  // Distribution of ◇∧ OI (no IO)
+	{nil, "□(A∧B)→(□A∧□B)", pr.Positive, pr.ModalK}, // Distribution of □∧ OI
+	{nil, "(□A∧□B)→□(A∧B)", pr.Positive, pr.ModalK}, // Distribution of □∧ IO
+	{nil, "(□A∨□B)→□(A∨B)", pr.Positive, pr.ModalK}, // Distribution of □∨ IO (no OI)
+	{nil, "◇(A→B)→(□A→◇B)", pr.Positive, pr.ModalK}, // Distribution of ◇→ OI
+	{nil, "□(A→B)→(□A→□B)", pr.Positive, pr.ModalK}, // CK Axiom 1
+	{nil, "□(A→B)→(◇A→◇B)", pr.Positive, pr.ModalK}, // CK Axiom 2
+	{nil, "◇(A∧B)→(◇A∧◇B)", pr.Positive, pr.ModalK}, // Distribution of ◇∧ OI (no IO)
+	{nil, "(◇A∨◇B)→◇(A∨B)", pr.Positive, pr.ModalK}, // Distribution of ◇∨ IO
 	// MPL+K...
-	{nil, "¬◇⊥", pr.Minimal, pr.ModalK},            // WK Axiom 1
-	{nil, "¬◇A→□¬A", pr.Minimal, pr.ModalK},        // Distribution of ¬◇ OI
-	{nil, "□¬A→¬◇A", pr.Minimal, pr.ModalK},        // Distribution of ¬◇ IO
-	{nil, "(◇A∨◇B)→◇(A∨B)", pr.Minimal, pr.ModalK}, // Distribution of ◇∨ IO
+	{nil, "¬◇⊥", pr.Minimal, pr.ModalK},     // WK Axiom 1
+	{nil, "¬◇A→□¬A", pr.Minimal, pr.ModalK}, // Distribution of ¬◇ OI
+	{nil, "□¬A→¬◇A", pr.Minimal, pr.ModalK}, // Distribution of ¬◇ IO
 	// CPL+K...
 	{nil, "◇(A∨B)→(◇A∨◇B)", pr.Classical, pr.ModalK}, // Distribution of ◇∨ OI (IK Axiom 1)
 	{nil, "(◇A→□B)→□(A→B)", pr.Classical, pr.ModalK}, // Distribution of □→ IO (IK Axiom 2, no OI)
+	{nil, "(□A→◇B)→◇(A→B)", pr.Classical, pr.ModalK}, // Distribution of ◇→ IO
 	// PPL+D...
 	{nil, "□A→◇A", pr.Positive, pr.ModalD}, // ElimD (Seriality)
 	// PPL+M...
@@ -384,11 +389,11 @@ var tcs []testCase = []testCase{
 
 func TestNDTheorems(t *testing.T) {
 	var (
-		tc    testCase
-		wffG  *fmla.Wff
-		wffsP []*fmla.Wff
-		drv   *Deriver
-		s     string
+		tc      testCase
+		wffG    *fmla.Wff
+		wffsP   []*fmla.Wff
+		drv     *Deriver
+		s, name string
 	)
 
 	for _, tc = range tcs {
@@ -401,15 +406,87 @@ func TestNDTheorems(t *testing.T) {
 
 			t.Logf("\n%s", s)
 
-			t.Fatalf("FAILED! Did not derive %q from %q at strengths (%d; %d).", tc.goal, tc.prems, tc.infS, tc.modS)
+			name = pr.NameLogic(drv.InfS, drv.SynB, drv.ModS)
+
+			t.Fatalf("FAILED! Did not derive %q from %q in %s.", tc.goal, tc.prems, name)
 		}
 
 		drv.Prf = drv.Prf.MinimizeProof()
 
 		s = drv.Prf.ConvertToFitchString()
 
-		t.Logf("\nPASSED! %q ⊢ %q at strengths (%d; %d):\n%s", tc.prems, tc.goal, tc.infS, tc.modS, s)
+		name = pr.NameLogic(drv.InfS, drv.SynB, drv.ModS)
+
+		t.Logf("\nPASSED! %q ⊢ %q in %s:\n%s", tc.prems, tc.goal, name, s)
 	}
 
 	t.Logf("All %d tests passed!\n", len(tcs))
+}
+
+func TestWeakestNDTheorems(t *testing.T) {
+	var (
+		tc        testCase
+		wffG      *fmla.Wff
+		wffsP     []*fmla.Wff
+		drvsW     []*Deriver
+		drv, drvW *Deriver
+		s, name   string
+	)
+
+TESTWEAKESTTHEOREMS_OUTER:
+	for _, tc = range tcs {
+		wffsP, wffG = ndTestParseWffs(t, tc.prems...), ndTestParseWff(t, tc.goal)
+
+		drv = NewDeriver(tc.infS, tc.modS, wffG, wffsP...)
+
+		if !drv.DeriveAtStrength() {
+			s = drv.Prf.ConvertToFitchString()
+
+			t.Logf("\n%s", s)
+
+			name = pr.NameLogic(drv.InfS, drv.SynB, drv.ModS)
+
+			t.Fatalf("FAILED! Did not derive %q from %q in %s.", tc.goal, tc.prems, name)
+		}
+
+		t.Logf("Testing for weakest proof of %q...\n", fmla.GetWffString(wffG))
+
+		drvsW = DeriveAtWeakestStrengths(wffG, wffsP...)
+
+		for _, drvW = range drvsW {
+			if drvW.InfS == tc.infS && drvW.ModS == tc.modS {
+				t.Log("PASSED! Strengths matched for two proofs!")
+
+				// drv.Prf, drvW.Prf = drv.Prf.MinimizeProof(), drvW.Prf.MinimizeProof()
+
+				// s = drv.Prf.ConvertToFitchString() + "\n\n" + drvW.Prf.ConvertToFitchString()
+
+				// t.Log(s)
+
+				continue TESTWEAKESTTHEOREMS_OUTER
+			}
+		}
+
+		t.Logf("FAILED!\n")
+
+		drv.Prf = drv.Prf.MinimizeProof()
+
+		s = drv.Prf.ConvertToFitchString()
+
+		name = pr.NameLogic(drv.InfS, drv.SynB, drv.ModS)
+
+		t.Logf("The test-case proof passed in %s:\n%s\n\n", name, s)
+
+		for _, drvW = range drvsW {
+			drvW.Prf = drvW.Prf.MinimizeProof()
+
+			s = drvW.Prf.ConvertToFitchString()
+
+			name = pr.NameLogic(drvW.InfS, drvW.SynB, drvW.ModS)
+
+			t.Logf("But this proof passed in %s:\n%s\n\n", name, s)
+		}
+
+		t.Fatal()
+	}
 }
