@@ -1,6 +1,7 @@
 package fmla
 
 import (
+	"fmt"
 	"slices"
 )
 
@@ -20,8 +21,8 @@ func getLastElement[T any](sl []T) (last T, ok bool) {
 }
 
 func NewCompositeWff(sym Symbol, subL, subR *Wff, pv Predicate, av Argument) (wff *Wff) {
-	switch {
-	case slices.Contains(UnaryOps, sym):
+	switch sym {
+	case Neg, Box, Diamond:
 		if subL == nil {
 			panic("Missing subformula.")
 		}
@@ -33,7 +34,7 @@ func NewCompositeWff(sym Symbol, subL, subR *Wff, pv Predicate, av Argument) (wf
 		}
 
 		wff.subL.sup = wff
-	case slices.Contains(BinaryOps, sym):
+	case Vee, Wedge, To, Iff:
 		if subL == nil || subR == nil {
 			panic("Missing subformulae.")
 		}
@@ -46,7 +47,7 @@ func NewCompositeWff(sym Symbol, subL, subR *Wff, pv Predicate, av Argument) (wf
 		}
 
 		wff.subL.sup, wff.subR.sup = wff, wff
-	case slices.Contains(Quantifiers, sym):
+	case ForAll, Exists:
 		if pv == 0 && av == 0 {
 			panic("No constant over which to quantify.")
 		}
@@ -72,6 +73,10 @@ func NewCompositeWff(sym Symbol, subL, subR *Wff, pv Predicate, av Argument) (wf
 		}
 
 		wff.subL.sup = wff
+	default:
+		var msg string = fmt.Sprintf("Invalid composite operator: '%c'.", sym)
+
+		panic(msg)
 	}
 
 	wff.h = hashWff(wff)

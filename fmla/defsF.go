@@ -97,7 +97,7 @@ func argsToArgString(args ...Argument) (s ArgString) {
 
 func GetWffKind(wff *Wff) (kind WffKind) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	kind = wff.kind
@@ -107,7 +107,7 @@ func GetWffKind(wff *Wff) (kind WffKind) {
 
 func GetWffMop(wff *Wff) (sym Symbol) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	sym = wff.mop
@@ -121,7 +121,7 @@ func GetWffOps(wff *Wff) (ops []Symbol) {
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	ops = append(ops, wff.mop)
@@ -143,7 +143,7 @@ func GetWffOps(wff *Wff) (ops []Symbol) {
 
 		ops = append(ops, opsL...)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -151,7 +151,7 @@ func GetWffOps(wff *Wff) (ops []Symbol) {
 
 func GetWffVars(wff *Wff) (pv Predicate, av Argument) {
 	if wff == nil || wff.kind != Quantified {
-		panic("Invalid WffTree")
+		panic("The Wff is missing or ill-formed.")
 	}
 
 	if wff.pv == 0 && wff.av == 0 {
@@ -169,7 +169,7 @@ func GetWffVars(wff *Wff) (pv Predicate, av Argument) {
 
 func GetWffSubformulae(wff *Wff) (subL, subR *Wff) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if wff.subL != nil {
@@ -183,13 +183,15 @@ func GetWffSubformulae(wff *Wff) (subL, subR *Wff) {
 	return
 }
 
-func GetWffSuperformula(wff *Wff) (sup *Wff) {
+func GetWffSuperformula(wff *Wff) (sup *Wff, has bool) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
-	if wff.sup != nil {
+	if has = wff.sup != nil; has {
 		sup = DeepCopy(wff.sup)
+	} else {
+		sup = wff
 	}
 
 	return
@@ -197,7 +199,7 @@ func GetWffSuperformula(wff *Wff) (sup *Wff) {
 
 func GetWffPredAndArgs(wff *Wff) (pred Predicate, args []Argument, ok bool) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if ok = wff.kind == Atomic; ok {
@@ -278,7 +280,7 @@ func GetConstants(wff *Wff) (pcs []Predicate, acs []Argument) {
 
 		acs = append(acs, acsL...)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	if wff.sup == nil {
@@ -337,7 +339,7 @@ func GetVariables(wff *Wff) (pvs []Predicate, avs []Argument) {
 
 		avs = append(avs, avsL...)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	if wff.sup == nil {
@@ -408,7 +410,7 @@ func GetFreeVariables(wff *Wff) (pvs []Predicate, avs []Argument) {
 		}
 
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	for dex = len(pvs) - 1; -1 < dex; dex -= 1 {
@@ -433,7 +435,7 @@ func GetWffString(wff *Wff) (s string) {
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	switch wff.kind {
@@ -484,7 +486,7 @@ func GetWffString(wff *Wff) (s string) {
 			s = string(wff.mop) + string(wff.av) + sL
 		}
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -496,7 +498,7 @@ func GetOpsString(wff *Wff) (s string) {
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	switch wff.kind {
@@ -511,7 +513,7 @@ func GetOpsString(wff *Wff) (s string) {
 	case Quantified:
 		s = string(wff.mop) + GetOpsString(wff.subL)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -540,7 +542,7 @@ func GetWffDepth(wff *Wff) (depW uint) {
 
 		depW = max(depL, depR) + 1
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -548,7 +550,7 @@ func GetWffDepth(wff *Wff) (depW uint) {
 
 func HasPred(wff *Wff, pred Predicate) (has bool) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	switch wff.kind {
@@ -561,7 +563,7 @@ func HasPred(wff *Wff, pred Predicate) (has bool) {
 	case Quantified:
 		has = HasPred(wff.subL, pred)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -571,7 +573,7 @@ func HasArg(wff *Wff, arg Argument) (has bool) {
 	var args []Argument
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	switch wff.kind {
@@ -586,7 +588,7 @@ func HasArg(wff *Wff, arg Argument) (has bool) {
 	case Quantified:
 		has = HasArg(wff.subL, arg)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -594,7 +596,7 @@ func HasArg(wff *Wff, arg Argument) (has bool) {
 
 func HasOp(wff *Wff, op Symbol) (has bool) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	switch wff.kind {
@@ -607,7 +609,7 @@ func HasOp(wff *Wff, op Symbol) (has bool) {
 	case Quantified:
 		has = wff.mop == op || HasOp(wff.subL, op)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -615,7 +617,7 @@ func HasOp(wff *Wff, op Symbol) (has bool) {
 
 func CountOps(wff *Wff, ops ...Symbol) (count uint) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if slices.Contains(ops, wff.mop) {
@@ -632,7 +634,7 @@ func CountOps(wff *Wff, ops ...Symbol) (count uint) {
 	case Quantified:
 		count += CountOps(wff.subL, ops...)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -646,7 +648,7 @@ func HasFreeVars(wff *Wff) (has bool) {
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	pvs, avs = GetFreeVariables(wff)
@@ -660,7 +662,7 @@ func HasFreeVars(wff *Wff) (has bool) {
 
 func HasSubformula(wff *Wff, sub *Wff) (has bool) {
 	if wff == nil || sub == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula or subformula.")
 	}
 
 	switch wff.kind {
@@ -673,7 +675,7 @@ func HasSubformula(wff *Wff, sub *Wff) (has bool) {
 	case Quantified:
 		has = wff.h == sub.h || HasSubformula(wff.subL, sub)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -685,7 +687,7 @@ func RetrieveSubformula(wff *Wff, loc string) (sub *Wff) {
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	sub = wff

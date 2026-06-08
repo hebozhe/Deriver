@@ -35,13 +35,13 @@ func DeepCopy(wff *Wff) (wffC *Wff) {
 	return
 }
 
-func ReplacePreds(wff *Wff, pA Predicate, pB Predicate) (wffR *Wff) {
+func ReplaceAllPreds(wff *Wff, pA Predicate, pB Predicate) (wffR *Wff) {
 	var (
 		replacePredsMut func(wffM *Wff) (n int)
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	wffR = DeepCopy(wff)
@@ -61,7 +61,7 @@ func ReplacePreds(wff *Wff, pA Predicate, pB Predicate) (wffR *Wff) {
 		case Quantified:
 			n = replacePredsMut(wffM.subL)
 		default:
-			panic("Invalid WffTree")
+			panic("The Wff is ill-formed.")
 		}
 
 		if 0 < n {
@@ -76,13 +76,13 @@ func ReplacePreds(wff *Wff, pA Predicate, pB Predicate) (wffR *Wff) {
 	return
 }
 
-func ReplaceArgs(wff *Wff, aA Argument, aB Argument) (wffR *Wff) {
+func ReplaceAllArgs(wff *Wff, aA Argument, aB Argument) (wffR *Wff) {
 	var (
 		replaceArgsMut func(wffM *Wff) (n int)
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	wffR = DeepCopy(wff)
@@ -113,7 +113,7 @@ func ReplaceArgs(wff *Wff, aA Argument, aB Argument) (wffR *Wff) {
 		case Quantified:
 			n = replaceArgsMut(wffM.subL)
 		default:
-			panic("Invalid WffTree")
+			panic("The Wff is ill-formed.")
 		}
 
 		if 0 < n {
@@ -160,7 +160,7 @@ func ReplaceEachArgOnce(wff *Wff, aA Argument, aB Argument, barOps ...Symbol) (w
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if has = slices.Contains(barOps, wff.mop); !has {
@@ -224,16 +224,16 @@ func ReplaceEachArgOnce(wff *Wff, aA Argument, aB Argument, barOps ...Symbol) (w
 				wffsR = append(wffsR, wffN)
 			}
 		default:
-			panic("Invalid WffTree")
+			panic("The Wff is ill-formed.")
 		}
 	}
 
 	return
 }
 
-func ReplaceWff(wff, wffA, wffB *Wff) (wffR *Wff) {
+func ReplaceAllSubformulae(wff, subA, subB *Wff) (wffR *Wff) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if wff.sup == nil {
@@ -242,16 +242,16 @@ func ReplaceWff(wff, wffA, wffB *Wff) (wffR *Wff) {
 		wffR = wff
 	}
 
-	if IsIdentical(wffR, wffA) {
+	if IsIdentical(wffR, subA) {
 		wffR = &Wff{
-			kind: wffB.kind,
-			mop:  wffB.mop,
-			pv:   wffB.pv,
-			av:   wffB.av,
-			pred: wffB.pred,
-			args: wffB.args,
-			subL: DeepCopy(wffB.subL),
-			subR: DeepCopy(wffB.subR),
+			kind: subB.kind,
+			mop:  subB.mop,
+			pv:   subB.pv,
+			av:   subB.av,
+			pred: subB.pred,
+			args: subB.args,
+			subL: DeepCopy(subB.subL),
+			subR: DeepCopy(subB.subR),
 			sup:  wffR.sup,
 		}
 
@@ -267,13 +267,13 @@ func ReplaceWff(wff, wffA, wffB *Wff) (wffR *Wff) {
 		case Atomic:
 			// There are no sub-formulae to check.
 		case Unary, Quantified:
-			wffR.subL = ReplaceWff(wffR.subL, wffA, wffB)
+			wffR.subL = ReplaceAllSubformulae(wffR.subL, subA, subB)
 		case Binary:
-			wffR.subL = ReplaceWff(wffR.subL, wffA, wffB)
+			wffR.subL = ReplaceAllSubformulae(wffR.subL, subA, subB)
 
-			wffR.subR = ReplaceWff(wffR.subR, wffA, wffB)
+			wffR.subR = ReplaceAllSubformulae(wffR.subR, subA, subB)
 		default:
-			panic("Invalid WffTree")
+			panic("The Wff is ill-formed.")
 		}
 	}
 
@@ -290,7 +290,7 @@ func ReplaceEachWffOnce(wff, wffA, wffB *Wff, barOps ...Symbol) (wffsR []*Wff) {
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if wff.sup == nil {
@@ -393,7 +393,7 @@ func GetAllSubformulae(wff *Wff) (swffs []*Wff) {
 
 		swffs = append(swffs, swffsL...)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -401,7 +401,7 @@ func GetAllSubformulae(wff *Wff) (swffs []*Wff) {
 
 func Instantiate(wff *Wff, pred Predicate, arg Argument) (wffI *Wff) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if wff.kind != Quantified {
@@ -410,9 +410,9 @@ func Instantiate(wff *Wff, pred Predicate, arg Argument) (wffI *Wff) {
 
 	switch {
 	case wff.pv != 0 && pred != 0:
-		wffI = ReplacePreds(wff.subL, wff.pv, pred)
+		wffI = ReplaceAllPreds(wff.subL, wff.pv, pred)
 	case wff.av != 0 && arg != 0:
-		wffI = ReplaceArgs(wff.subL, wff.av, arg)
+		wffI = ReplaceAllArgs(wff.subL, wff.av, arg)
 	default:
 		panic("Parameters cannot qualify for instantiation.")
 	}
@@ -424,7 +424,7 @@ func GeneralizePred(mop Symbol, wff *Wff, pc, pv Predicate) (wffP *Wff) {
 	var subL *Wff
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if mop != Exists && mop != ForAll {
@@ -432,7 +432,7 @@ func GeneralizePred(mop Symbol, wff *Wff, pc, pv Predicate) (wffP *Wff) {
 	}
 
 	if pc != 0 && pv != 0 {
-		subL = ReplacePreds(wff, pc, pv)
+		subL = ReplaceAllPreds(wff, pc, pv)
 
 		wffP = NewCompositeWff(mop, subL, nil, pv, 0)
 	} else if pv != 0 {
@@ -448,7 +448,7 @@ func GeneralizeArg(mop Symbol, wff *Wff, ac, av Argument) (wffA *Wff) {
 	var subL *Wff
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	if mop != Exists && mop != ForAll {
@@ -456,7 +456,7 @@ func GeneralizeArg(mop Symbol, wff *Wff, ac, av Argument) (wffA *Wff) {
 	}
 
 	if ac != 0 && av != 0 {
-		subL = ReplaceArgs(wff, ac, av)
+		subL = ReplaceAllArgs(wff, ac, av)
 
 		wffA = NewCompositeWff(mop, subL, nil, 0, av)
 	} else if av != 0 {
@@ -520,7 +520,7 @@ func GetAllInstantiations(wff *Wff, pcs []Predicate, acs []Argument) (wffsToWffs
 				}
 			}
 		default:
-			panic("Invalid WffTree")
+			panic("The Wff is ill-formed.")
 		}
 	}
 

@@ -9,7 +9,7 @@ type WffHash uint64
 
 func hashWff(wff *Wff) (h WffHash) {
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	var hash64 hash.Hash64 = fnv.New64a()
@@ -68,7 +68,7 @@ func IsIdenticalAtLocales(wff *Wff, locA, locB string) (is bool) {
 	)
 
 	if wff == nil {
-		panic("Invalid WffTree")
+		panic("Missing formula.")
 	}
 
 	wffA, wffB = RetrieveSubformula(wff, locA), RetrieveSubformula(wff, locB)

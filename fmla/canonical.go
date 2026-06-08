@@ -19,7 +19,7 @@ func orderAtomics(wff *Wff) (atoms []*Wff) {
 
 		atoms = append(atomsL, atomsR...)
 	default:
-		panic("Invalid WffTree")
+		panic("The Wff is ill-formed.")
 	}
 
 	return
@@ -65,12 +65,13 @@ ISCANONICAL_OUTER:
 	return
 }
 
-func MakeCanonical(wff *Wff) (cwff *Wff) {
+func MakeCanonical(wff *Wff) (wffC *Wff) {
 	var (
 		pcMap, pvMap               map[Predicate]Predicate
 		acMap, avMap               map[Argument]Argument
 		pcDex, pvDex, acDex, avIdx int
 		lenPC, lenPV, lenAC, lenAV int
+		buildMaps, applyMaps       func(wffK *Wff)
 	)
 
 	pcMap = map[Predicate]Predicate{}
@@ -81,41 +82,38 @@ func MakeCanonical(wff *Wff) (cwff *Wff) {
 
 	lenPC, lenPV, lenAC, lenAV = len(PredConsts), len(PredVars), len(ArgConsts), len(ArgVars)
 
-	// Pass 1: Traverse the tree to build the replacement mappings
-	var buildMaps func(wt *Wff)
-
-	buildMaps = func(wt *Wff) {
+	buildMaps = func(wffK *Wff) {
 		var (
 			ok   bool
 			args []Argument
 			arg  Argument
 		)
 
-		if wt == nil {
-			panic("Invalid WffTree")
+		if wffK == nil {
+			panic("The Wff is ill-formed.")
 		}
 
-		switch wt.kind {
+		switch wffK.kind {
 		case Atomic:
 			// Only map predicase constants and variables, not Top, Bot, or Equals.
-			if slices.Contains(PredConsts, wt.pred) {
-				if _, ok = pcMap[wt.pred]; !ok && pcDex < lenPC {
-					pcMap[wt.pred] = PredConsts[pcDex]
+			if slices.Contains(PredConsts, wffK.pred) {
+				if _, ok = pcMap[wffK.pred]; !ok && pcDex < lenPC {
+					pcMap[wffK.pred] = PredConsts[pcDex]
 
 					pcDex += 1
 				}
 			}
 
-			if slices.Contains(PredVars, wt.pred) {
-				if _, ok = pvMap[wt.pred]; !ok && pvDex < lenPV {
-					pvMap[wt.pred] = PredVars[pvDex]
+			if slices.Contains(PredVars, wffK.pred) {
+				if _, ok = pvMap[wffK.pred]; !ok && pvDex < lenPV {
+					pvMap[wffK.pred] = PredVars[pvDex]
 
 					pvDex += 1
 				}
 			}
 
 			// Map Argument constants and variables.
-			args = argStringToArgs(wt.args)
+			args = argStringToArgs(wffK.args)
 
 			for _, arg = range args {
 				switch {
@@ -134,40 +132,38 @@ func MakeCanonical(wff *Wff) (cwff *Wff) {
 				}
 			}
 		case Unary:
-			buildMaps(wt.subL)
+			buildMaps(wffK.subL)
 		case Binary:
-			buildMaps(wt.subL)
-			buildMaps(wt.subR)
+			buildMaps(wffK.subL)
+			buildMaps(wffK.subR)
 		case Quantified:
-			if wt.pv != 0 {
-				if _, ok = pvMap[wt.pv]; !ok && pvDex < lenPV {
-					pvMap[wt.pv] = PredVars[pvDex]
+			if wffK.pv != 0 {
+				if _, ok = pvMap[wffK.pv]; !ok && pvDex < lenPV {
+					pvMap[wffK.pv] = PredVars[pvDex]
 
 					pvDex += 1
 				}
 			}
 
-			if wt.av != 0 {
-				if _, ok = avMap[wt.av]; !ok && avIdx < lenAV {
-					avMap[wt.av] = ArgVars[avIdx]
+			if wffK.av != 0 {
+				if _, ok = avMap[wffK.av]; !ok && avIdx < lenAV {
+					avMap[wffK.av] = ArgVars[avIdx]
 
 					avIdx += 1
 				}
 			}
 
-			buildMaps(wt.subL)
+			buildMaps(wffK.subL)
 		default:
-			panic("Invalid WffTree")
+			panic("The Wff is ill-formed.")
 		}
 	}
 
 	buildMaps(wff)
 
-	cwff = DeepCopy(wff)
+	wffC = DeepCopy(wff)
 
-	var applyMaps func(wt *Wff)
-
-	applyMaps = func(wt *Wff) {
+	applyMaps = func(wffT *Wff) {
 		var (
 			mpc, mpv Predicate
 			mac, mav Argument
@@ -177,28 +173,28 @@ func MakeCanonical(wff *Wff) (cwff *Wff) {
 			dex      int
 		)
 
-		if wt == nil {
-			panic("Invalid WffTree")
+		if wffT == nil {
+			panic("The Wff is ill-formed.")
 		}
 
-		switch wt.kind {
+		switch wffT.kind {
 		case Quantified:
-			if wt.pv != 0 {
-				wt.pv = pvMap[wt.pv]
+			if wffT.pv != 0 {
+				wffT.pv = pvMap[wffT.pv]
 			}
-			if wt.av != 0 {
-				wt.av = avMap[wt.av]
+			if wffT.av != 0 {
+				wffT.av = avMap[wffT.av]
 			}
 
-			applyMaps(wt.subL)
+			applyMaps(wffT.subL)
 		case Atomic:
-			if mpc, ok = pcMap[wt.pred]; ok {
-				wt.pred = mpc
-			} else if mpv, ok = pvMap[wt.pred]; ok {
-				wt.pred = mpv
+			if mpc, ok = pcMap[wffT.pred]; ok {
+				wffT.pred = mpc
+			} else if mpv, ok = pvMap[wffT.pred]; ok {
+				wffT.pred = mpv
 			}
 
-			args = argStringToArgs(wt.args)
+			args = argStringToArgs(wffT.args)
 
 			for dex, arg = range args {
 				if mac, ok = acMap[arg]; ok {
@@ -208,18 +204,18 @@ func MakeCanonical(wff *Wff) (cwff *Wff) {
 				}
 			}
 
-			wt.args = argsToArgString(args...)
+			wffT.args = argsToArgString(args...)
 		case Unary:
-			applyMaps(wt.subL)
+			applyMaps(wffT.subL)
 		case Binary:
-			applyMaps(wt.subL)
-			applyMaps(wt.subR)
+			applyMaps(wffT.subL)
+			applyMaps(wffT.subR)
 		}
 	}
 
-	applyMaps(cwff)
+	applyMaps(wffC)
 
-	cwff.h = hashWff(cwff)
+	wffC.h = hashWff(wffC)
 
 	return
 }
