@@ -4,523 +4,464 @@ import (
 	"slices"
 )
 
-func DeepCopy(wff *Wff) (wffC *Wff) {
-	if wff != nil {
-		wffC = &Wff{
-			kind: wff.kind,
-			mop:  wff.mop,
-			pv:   wff.pv,
-			av:   wff.av,
-			pred: wff.pred,
-			args: wff.args,
-			// subL: wff.subL, // The children are set below.
-			// subR: wff.subR, // The children are set below.
-			// sup:  nil, // The parent is set below.
-			h: wff.h,
-		}
-
-		if wff.subL != nil {
-			wffC.subL = DeepCopy(wff.subL)
-
-			wffC.subL.sup = wffC
-		}
-
-		if wff.subR != nil {
-			wffC.subR = DeepCopy(wff.subR)
-
-			wffC.subR.sup = wffC
-		}
-	}
-
-	return
-}
-
-func ReplaceAllPreds(wff *Wff, pA Predicate, pB Predicate) (wffR *Wff) {
+func replaceAllPreds(wffA *Wff, predA, predB Predicate) (wffB *Wff) {
 	var (
-		replacePredsMut func(wffM *Wff) (n int)
+		subL, subR *Wff
 	)
 
-	if wff == nil {
-		panic("Missing formula.")
-	}
-
-	wffR = DeepCopy(wff)
-
-	replacePredsMut = func(wffM *Wff) (n int) {
-		switch wffM.kind {
-		case Atomic:
-			if wffM.pred == pA {
-				wffM.pred = pB
-
-				n = 1
-			}
-		case Unary:
-			n = replacePredsMut(wffM.subL)
-		case Binary:
-			n = replacePredsMut(wffM.subL) + replacePredsMut(wffM.subR)
-		case Quantified:
-			n = replacePredsMut(wffM.subL)
-		default:
-			panic("The Wff is ill-formed.")
-		}
-
-		if 0 < n {
-			wffM.h = hashWff(wffM)
-		}
-
-		return
-	}
-
-	_ = replacePredsMut(wffR)
-
-	return
-}
-
-func ReplaceAllArgs(wff *Wff, aA Argument, aB Argument) (wffR *Wff) {
-	var (
-		replaceArgsMut func(wffM *Wff) (n int)
-	)
-
-	if wff == nil {
-		panic("Missing formula.")
-	}
-
-	wffR = DeepCopy(wff)
-
-	replaceArgsMut = func(wffM *Wff) (n int) {
-		switch wffM.kind {
-		case Atomic:
-			var (
-				newArgs ArgString
-				arg     Argument
-			)
-
-			for _, arg = range argStringToArgs(wffM.args) {
-				if arg == aA {
-					newArgs += ArgString(aB)
-
-					n += 1
-				} else {
-					newArgs += ArgString(arg)
-				}
-			}
-
-			wffM.args = newArgs
-		case Unary:
-			n = replaceArgsMut(wffM.subL)
-		case Binary:
-			n = replaceArgsMut(wffM.subL) + replaceArgsMut(wffM.subR)
-		case Quantified:
-			n = replaceArgsMut(wffM.subL)
-		default:
-			panic("The Wff is ill-formed.")
-		}
-
-		if 0 < n {
-			wffM.h = hashWff(wffM)
-		}
-
-		return
-	}
-
-	_ = replaceArgsMut(wffR)
-
-	return wffR
-}
-
-func singleReplacements(s ArgString, aA Argument, aB Argument) (ss []ArgString) {
-	var (
-		args []Argument
-		arg  Argument
-		dex  int
-	)
-
-	args = argStringToArgs(s)
-
-	for dex, arg = range args {
-		if arg == aA {
-			s = argsToArgString(args[:dex]...) +
-				ArgString(aB) +
-				argsToArgString(args[dex+1:]...)
-
-			ss = append(ss, s)
-		}
-	}
-
-	return
-}
-
-func ReplaceEachArgOnce(wff *Wff, aA Argument, aB Argument, barOps ...Symbol) (wffsR []*Wff) {
-	var (
-		has             bool
-		wffC, sub, wffN *Wff
-		subLs, subRs    []*Wff
-		ss              []ArgString
-		s               ArgString
-	)
-
-	if wff == nil {
-		panic("Missing formula.")
-	}
-
-	if has = slices.Contains(barOps, wff.mop); !has {
-		if wff.sup == nil {
-			wffC = DeepCopy(wff)
-		} else {
-			wffC = wff
-		}
-
-		switch wffC.kind {
-		case Atomic:
-			ss = singleReplacements(wffC.args, aA, aB)
-
-			for _, s = range ss {
-				wffN = &Wff{
-					kind: Atomic,
-					mop:  wffC.mop,
-					pv:   wffC.pv,
-					av:   wffC.av,
-					pred: wffC.pred,
-					args: s,
-					subL: DeepCopy(wffC.subL),
-					subR: DeepCopy(wffC.subR),
-					sup:  wffC.sup,
-				}
-
-				wffN.h = hashWff(wffN)
-
-				wffsR = append(wffsR, wffN)
-			}
-		case Unary:
-			subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
-
-			for _, sub = range subLs {
-				wffN = NewCompositeWff(wffC.mop, sub, nil, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-		case Binary:
-			subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
-
-			for _, sub = range subLs {
-				wffN = NewCompositeWff(wffC.mop, sub, wffC.subR, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-
-			subRs = ReplaceEachArgOnce(wffC.subR, aA, aB)
-
-			for _, sub = range subRs {
-				wffN = NewCompositeWff(wffC.mop, wffC.subL, sub, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-		case Quantified:
-			subLs = ReplaceEachArgOnce(wffC.subL, aA, aB)
-
-			for _, sub = range subLs {
-				wffN = NewCompositeWff(wffC.mop, sub, nil, wffC.pv, wffC.av)
-
-				wffsR = append(wffsR, wffN)
-			}
-		default:
-			panic("The Wff is ill-formed.")
-		}
-	}
-
-	return
-}
-
-func ReplaceAllSubformulae(wff, subA, subB *Wff) (wffR *Wff) {
-	if wff == nil {
-		panic("Missing formula.")
-	}
-
-	if wff.sup == nil {
-		wffR = DeepCopy(wff)
-	} else {
-		wffR = wff
-	}
-
-	if IsIdentical(wffR, subA) {
-		wffR = &Wff{
-			kind: subB.kind,
-			mop:  subB.mop,
-			pv:   subB.pv,
-			av:   subB.av,
-			pred: subB.pred,
-			args: subB.args,
-			subL: DeepCopy(subB.subL),
-			subR: DeepCopy(subB.subR),
-			sup:  wffR.sup,
-		}
-
-		if wffR.subL != nil {
-			wffR.subL.sup = wffR
-		}
-
-		if wffR.subR != nil {
-			wffR.subR.sup = wffR
-		}
-	} else {
-		switch wffR.kind {
-		case Atomic:
-			// There are no sub-formulae to check.
-		case Unary, Quantified:
-			wffR.subL = ReplaceAllSubformulae(wffR.subL, subA, subB)
-		case Binary:
-			wffR.subL = ReplaceAllSubformulae(wffR.subL, subA, subB)
-
-			wffR.subR = ReplaceAllSubformulae(wffR.subR, subA, subB)
-		default:
-			panic("The Wff is ill-formed.")
-		}
-	}
-
-	wffR.h = hashWff(wffR)
-
-	return
-}
-
-func ReplaceEachWffOnce(wff, wffA, wffB *Wff, barOps ...Symbol) (wffsR []*Wff) {
-	var (
-		has             bool
-		wffC, sub, wffN *Wff
-		subLs, subRs    []*Wff
-	)
-
-	if wff == nil {
-		panic("Missing formula.")
-	}
-
-	if wff.sup == nil {
-		wffC = DeepCopy(wff)
-	} else {
-		wffC = wff
-	}
-
-	if IsIdentical(wffC, wffA) {
-		wffN = DeepCopy(wffB)
-
-		wffsR = append(wffsR, wffN)
-	} else if has = slices.Contains(barOps, wff.mop); !has {
-		switch wffC.kind {
-		case Atomic:
-		case Unary:
-			if IsIdentical(wffC.subL, wffA) {
-				wffN = NewCompositeWff(wffC.mop, wffB, nil, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-
-			subLs = ReplaceEachWffOnce(wffC.subL, wffA, wffB, barOps...)
-
-			for _, sub = range subLs {
-				wffN = NewCompositeWff(wffC.mop, sub, nil, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-		case Binary:
-			if IsIdentical(wffC.subL, wffA) {
-				wffN = NewCompositeWff(wffC.mop, wffB, wffC.subR, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-
-			subLs = ReplaceEachWffOnce(wffC.subL, wffA, wffB, barOps...)
-
-			for _, sub = range subLs {
-				wffN = NewCompositeWff(wffC.mop, sub, wffC.subR, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-
-			if IsIdentical(wffC.subR, wffA) {
-				wffN = NewCompositeWff(wffC.mop, wffC.subL, wffB, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-
-			subRs = ReplaceEachWffOnce(wffC.subR, wffA, wffB, barOps...)
-
-			for _, sub = range subRs {
-				wffN = NewCompositeWff(wffC.mop, wffC.subL, sub, 0, 0)
-
-				wffsR = append(wffsR, wffN)
-			}
-		case Quantified:
-			if IsIdentical(wffC.subL, wffA) {
-				wffN = NewCompositeWff(wffC.mop, wffB, nil, wffC.pv, wffC.av)
-
-				wffsR = append(wffsR, wffN)
-			}
-
-			subLs = ReplaceEachWffOnce(wffC.subL, wffA, wffB, barOps...)
-
-			for _, sub = range subLs {
-				wffN = NewCompositeWff(wffC.mop, sub, nil, wffC.pv, wffC.av)
-
-				wffsR = append(wffsR, wffN)
-			}
-		}
-	}
-
-	return
-}
-
-func GetAllSubformulae(wff *Wff) (swffs []*Wff) {
-	var (
-		swffsL, swffsR []*Wff
-	)
-
-	wff = DeepCopy(wff)
-
-	swffs = append(swffs, wff)
-
-	switch wff.kind {
+	switch wffA.kind {
 	case Atomic:
+		if wffA.pred == predA {
+			wffB = NewAtomicWff(predB, wffA.args...)
+		} else {
+			wffB = wffA.DeepCopy()
+		}
 	case Unary:
-		swffsL = GetAllSubformulae(wff.subL)
+		subL = replaceAllPreds(wffA.subL, predA, predB)
 
-		swffs = append(swffs, swffsL...)
+		wffB = NewUnaryWff(wffA.mop, subL)
 	case Binary:
-		swffsL, swffsR = GetAllSubformulae(wff.subL), GetAllSubformulae(wff.subR)
+		subL, subR = replaceAllPreds(wffA.subL, predA, predB), replaceAllPreds(wffA.subR, predA, predB)
 
-		swffs = append(swffs, swffsL...)
-		swffs = append(swffs, swffsR...)
+		wffB = NewBinaryWff(wffA.mop, subL, subR)
 	case Quantified:
-		swffsL = GetAllSubformulae(wff.subL)
+		if wffA.pv == predA {
+			wffB = wffA.DeepCopy()
+		} else {
+			subL = replaceAllPreds(wffA.subL, predA, predB)
 
-		swffs = append(swffs, swffsL...)
-	default:
-		panic("The Wff is ill-formed.")
+			wffB = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
+		}
 	}
 
 	return
 }
 
-func Instantiate(wff *Wff, pred Predicate, arg Argument) (wffI *Wff) {
-	if wff == nil {
-		panic("Missing formula.")
-	}
-
-	if wff.kind != Quantified {
-		panic("WffTree is not a quantified formula.")
-	}
-
-	switch {
-	case wff.pv != 0 && pred != 0:
-		wffI = ReplaceAllPreds(wff.subL, wff.pv, pred)
-	case wff.av != 0 && arg != 0:
-		wffI = ReplaceAllArgs(wff.subL, wff.av, arg)
-	default:
-		panic("Parameters cannot qualify for instantiation.")
-	}
-
-	return
-}
-
-func GeneralizePred(mop Symbol, wff *Wff, pc, pv Predicate) (wffP *Wff) {
-	var subL *Wff
-
-	if wff == nil {
-		panic("Missing formula.")
-	}
-
-	if mop != Exists && mop != ForAll {
-		panic("Invalid symbol for generalization.")
-	}
-
-	if pc != 0 && pv != 0 {
-		subL = ReplaceAllPreds(wff, pc, pv)
-
-		wffP = NewCompositeWff(mop, subL, nil, pv, 0)
-	} else if pv != 0 {
-		wffP = NewCompositeWff(mop, wff, nil, pv, 0)
-	} else {
-		panic("Parameters cannot qualify for generalization.")
-	}
-
-	return
-}
-
-func GeneralizeArg(mop Symbol, wff *Wff, ac, av Argument) (wffA *Wff) {
-	var subL *Wff
-
-	if wff == nil {
-		panic("Missing formula.")
-	}
-
-	if mop != Exists && mop != ForAll {
-		panic("Invalid symbol for generalization.")
-	}
-
-	if ac != 0 && av != 0 {
-		subL = ReplaceAllArgs(wff, ac, av)
-
-		wffA = NewCompositeWff(mop, subL, nil, 0, av)
-	} else if av != 0 {
-		wffA = NewCompositeWff(mop, wff, nil, 0, av)
-	} else {
-		panic("Parameters cannot qualify for generalization.")
-	}
-
-	return
-}
-
-func GetAllInstantiations(wff *Wff, pcs []Predicate, acs []Argument) (wffsToWffsI map[*Wff][]*Wff) {
+func replaceAllArgs(wffA *Wff, argA, argB Argument) (wffB *Wff) {
 	var (
-		pc    Predicate
-		ac    Argument
-		wffI  *Wff
-		wffsI []*Wff
-		tmp   map[*Wff][]*Wff
+		subL, subR   *Wff
+		arg          Argument
+		valency, dex int
+		argsB        []Argument
 	)
 
-	wffsToWffsI = map[*Wff][]*Wff{}
+	switch wffA.kind {
+	case Atomic:
+		if valency = len(wffA.args); 0 < valency && slices.Contains(wffA.args, argA) {
+			argsB = make([]Argument, valency)
 
-	if HasOp(wff, Exists) || HasOp(wff, ForAll) {
-		switch wff.kind {
+			for dex, arg = range wffA.args {
+				if arg == argA {
+					argsB[dex] = argB
+				} else {
+					argsB[dex] = arg
+				}
+			}
+
+			wffB = NewAtomicWff(wffA.pred, argsB...)
+		} else {
+			wffB = wffA.DeepCopy()
+		}
+	case Unary:
+		subL = replaceAllArgs(wffA.subL, argA, argB)
+
+		wffB = NewUnaryWff(wffA.mop, subL)
+	case Binary:
+		subL, subR = replaceAllArgs(wffA.subL, argA, argB), replaceAllArgs(wffA.subR, argA, argB)
+
+		wffB = NewBinaryWff(wffA.mop, subL, subR)
+	case Quantified:
+		if wffA.av == argA {
+			wffB = wffA.DeepCopy()
+		} else {
+			subL = replaceAllArgs(wffA.subL, argA, argB)
+
+			wffB = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
+		}
+	}
+
+	return
+}
+
+func replaceSomePreds(wffA *Wff, predA, predB Predicate, skip ...Symbol) (wffsB []*Wff) {
+	var (
+		wffB, subL, subR *Wff
+		subsL, subsR     []*Wff
+	)
+
+	if slices.Contains(skip, wffA.mop) {
+		wffsB = []*Wff{wffA.DeepCopy()}
+	} else {
+		switch wffA.kind {
+		case Atomic:
+			if wffA.pred == predA {
+				wffB = NewAtomicWff(predB, wffA.args...)
+
+				wffsB = []*Wff{wffA.DeepCopy(), wffB}
+			} else {
+				wffsB = []*Wff{wffA.DeepCopy()}
+			}
 		case Unary:
-			wffsToWffsI = GetAllInstantiations(wff.subL, pcs, acs)
+			subsL = replaceSomePreds(wffA.subL, predA, predB, skip...)
+
+			for _, subL = range subsL {
+				wffB = NewUnaryWff(wffA.mop, subL)
+
+				wffsB = append(wffsB, wffB)
+			}
 		case Binary:
-			wffsToWffsI = GetAllInstantiations(wff.subL, pcs, acs)
+			subsL, subsR = replaceSomePreds(wffA.subL, predA, predB, skip...), replaceSomePreds(wffA.subR, predA, predB, skip...)
 
-			tmp = GetAllInstantiations(wff.subR, pcs, acs)
+			for _, subL = range subsL {
+				for _, subR = range subsR {
+					wffB = NewBinaryWff(wffA.mop, subL, subR)
 
-			for wff, wffsI = range tmp {
-				wffsToWffsI[wff] = append(wffsToWffsI[wff], wffsI...)
+					wffsB = append(wffsB, wffB)
+				}
 			}
 		case Quantified:
-			if !HasFreeVars(wff.subL) {
-				wffI = DeepCopy(wff.subL)
+			if wffA.pv == predA {
+				wffsB = []*Wff{wffA.DeepCopy()}
+			} else {
+				subsL = replaceSomePreds(wffA.subL, predA, predB, skip...)
 
-				wffsToWffsI[wff] = append(wffsToWffsI[wff], wffI)
-			} else if wff.pv != 0 {
-				for _, pc = range pcs {
-					wffI = Instantiate(wff, pc, 0)
+				for _, subL = range subsL {
+					wffB = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
 
-					wffsToWffsI[wff] = append(wffsToWffsI[wff], wffI)
-				}
-			} else if wff.av != 0 {
-				for _, ac = range acs {
-					wffI = Instantiate(wff, 0, ac)
-
-					wffsToWffsI[wff] = append(wffsToWffsI[wff], wffI)
+					wffsB = append(wffsB, wffB)
 				}
 			}
+		}
+	}
 
-			if HasOp(wff.subL, Exists) || HasOp(wff.subL, ForAll) {
-				for _, wffI = range wffsToWffsI[wff] {
-					tmp = GetAllInstantiations(wffI, pcs, acs)
+	return
+}
 
-					for wff, wffsI = range tmp {
-						wffsToWffsI[wff] = append(wffsToWffsI[wff], wffsI...)
-					}
+func argCombos(args []Argument, argA, argB Argument) (combos [][]Argument) {
+	var (
+		arg               Argument
+		next              [][]Argument
+		combo, oldC, newC []Argument
+	)
+
+	combos = [][]Argument{{}}
+
+	for _, arg = range args {
+		next = [][]Argument{}
+
+		for _, combo = range combos {
+			if arg == argA {
+				oldC, newC = slices.Clone(combo), slices.Clone(combo)
+				oldC, newC = append(oldC, argB), append(newC, argA)
+
+				next = append(next, oldC, newC)
+			} else {
+				oldC = slices.Clone(combo)
+
+				oldC = append(oldC, arg)
+
+				next = append(next, oldC)
+			}
+		}
+
+		combos = next
+	}
+
+	return
+}
+
+func replaceSomeArgs(wffA *Wff, argA, argB Argument, skip ...Symbol) (wffsB []*Wff) {
+	var (
+		wffB, subL, subR *Wff
+		subsL, subsR     []*Wff
+		combos           [][]Argument
+		combo            []Argument
+	)
+
+	if slices.Contains(skip, wffA.mop) {
+		wffsB = []*Wff{wffA.DeepCopy()}
+	} else {
+		switch wffA.kind {
+		case Atomic:
+			if slices.Contains(wffA.args, argA) {
+				combos = argCombos(wffA.args, argA, argB)
+
+				for _, combo = range combos {
+					wffB = NewAtomicWff(wffA.pred, combo...)
+
+					wffsB = append(wffsB, wffB)
+				}
+			} else {
+				wffsB = []*Wff{wffA.DeepCopy()}
+			}
+		case Unary:
+			subsL = replaceSomeArgs(wffA.subL, argA, argB, skip...)
+
+			for _, subL = range subsL {
+				wffB = NewUnaryWff(wffA.mop, subL)
+
+				wffsB = append(wffsB, wffB)
+			}
+		case Binary:
+			subsL, subsR = replaceSomeArgs(wffA.subL, argA, argB, skip...), replaceSomeArgs(wffA.subR, argA, argB, skip...)
+
+			for _, subL = range subsL {
+				for _, subR = range subsR {
+					wffB = NewBinaryWff(wffA.mop, subL, subR)
+
+					wffsB = append(wffsB, wffB)
 				}
 			}
-		default:
-			panic("The Wff is ill-formed.")
+		case Quantified:
+			if wffA.av == argA {
+				wffsB = []*Wff{wffA.DeepCopy()}
+			} else {
+				subsL = replaceSomeArgs(wffA.subL, argA, argB, skip...)
+
+				for _, subL = range subsL {
+					wffB = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
+
+					wffsB = append(wffsB, wffB)
+				}
+			}
+		}
+	}
+
+	return
+}
+
+func replaceSomeWffs(wffA *Wff, wffB, wffC *Wff, skip ...Symbol) (wffsD []*Wff) {
+	var (
+		wffD         *Wff
+		subsL, subsR []*Wff
+		subL, subR   *Wff
+	)
+
+	if slices.Contains(skip, wffA.mop) {
+		wffsD = []*Wff{wffA.DeepCopy()}
+	} else if wffA.Is(wffB) {
+		wffsD = []*Wff{wffA.DeepCopy(), wffC.DeepCopy()}
+	} else if !(wffB.Depth() < wffA.Depth()) {
+		wffsD = []*Wff{wffA.DeepCopy()}
+	} else {
+		switch wffA.kind {
+		// case Atomic: Don't check Atomic kind. The depth check handles it.
+		case Unary:
+			subsL = replaceSomeWffs(wffA.subL, wffB, wffC, skip...)
+
+			for _, subL = range subsL {
+				wffD = NewUnaryWff(wffA.mop, subL)
+
+				wffsD = append(wffsD, wffD)
+			}
+		case Binary:
+			subsL, subsR = replaceSomeWffs(wffA.subL, wffB, wffC, skip...), replaceSomeWffs(wffA.subR, wffB, wffC, skip...)
+
+			for _, subL = range subsL {
+				for _, subR = range subsR {
+					wffD = NewBinaryWff(wffA.mop, subL, subR)
+
+					wffsD = append(wffsD, wffD)
+				}
+			}
+		case Quantified:
+			subsL = replaceSomeWffs(wffA.subL, wffB, wffC, skip...)
+
+			for _, subL = range subsL {
+				wffD = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
+
+				wffsD = append(wffsD, wffD)
+			}
+		}
+	}
+
+	return
+}
+
+type AtomicPart interface {
+	Predicate | Argument
+}
+
+func (wffA *Wff) Instantiate[AP AtomicPart](c AP) (wffB *Wff) {
+	var (
+		pc Predicate
+		ac Argument
+	)
+
+	if wffA == nil {
+		panic("Missing formula.")
+	}
+
+	if wffA.kind != Quantified {
+		panic("The formula is not quantified.")
+	}
+
+	switch valC := any(c).(type) {
+	case Predicate:
+		if pc = valC; !slices.Contains(PredConsts, pc) {
+			panic("Invalid predicate constant.")
+		}
+	case Argument:
+		if ac = valC; !slices.Contains(ArgConsts, ac) {
+			panic("Invalid argument constant.")
+		}
+	}
+
+	if wffA.pv != NoPred && pc == NoPred {
+		panic("Missing predicate constant for predicate variable.")
+	}
+
+	if wffA.av != NoArg && ac == NoArg {
+		panic("Missing argument constant for argument variable.")
+	}
+
+	if wffA.pv != NoPred {
+		wffB = replaceAllPreds(wffA.subL, wffA.pv, pc)
+	} else if wffA.av != NoArg {
+		wffB = replaceAllArgs(wffA.subL, wffA.av, ac)
+	}
+
+	return
+}
+
+func (wffA *Wff) Generalize[A AtomicPart](c, v A, mop Symbol) (wffsB map[WffHash]*Wff) {
+	var (
+		pc, pv Predicate
+		ac, av Argument
+		reps   []*Wff
+		wffB   *Wff
+	)
+
+	if wffA == nil {
+		panic("Missing formula.")
+	}
+
+	if mop != Exists && mop != ForAll {
+		panic("Invalid operator for generalization.")
+	}
+
+	switch valC := any(c).(type) {
+	case Predicate:
+		if pc = valC; !slices.Contains(PredConsts, pc) {
+			panic("Invalid predicate constant.")
+		}
+	case Argument:
+		if ac = valC; !slices.Contains(ArgConsts, ac) {
+			panic("Invalid argument constant.")
+		}
+	}
+
+	switch valV := any(v).(type) {
+	case Predicate:
+		if pv = valV; !slices.Contains(PredVars, pv) {
+			panic("Invalid predicate variable.")
+		}
+	case Argument:
+		if av = valV; !slices.Contains(ArgVars, av) {
+			panic("Invalid argument variable.")
+		}
+	}
+
+	wffsB = map[WffHash]*Wff{}
+
+	switch mop {
+	case ForAll:
+		if pc != NoPred && pv != NoPred {
+			wffB = replaceAllPreds(wffA, pc, pv)
+			wffB = NewQuantifiedWff(mop, wffB, pv, NoArg)
+
+			wffsB[wffB.hash] = wffB
+		} else if ac != NoArg && av != NoArg {
+			wffB = replaceAllArgs(wffA, ac, av)
+			wffB = NewQuantifiedWff(mop, wffB, NoPred, av)
+
+			wffsB[wffB.hash] = wffB
+		}
+	case Exists:
+		if pc != NoPred && pv != NoPred {
+
+			reps = replaceSomePreds(wffA, pc, pv)
+
+			for _, wffB = range reps {
+				wffB = NewQuantifiedWff(mop, wffB, pv, NoArg)
+
+				wffsB[wffB.hash] = wffB
+			}
+		} else if ac != NoArg && av != NoArg {
+			reps = replaceSomeArgs(wffA, ac, av)
+
+			for _, wffB = range reps {
+				wffB = NewQuantifiedWff(mop, wffB, NoPred, av)
+
+				wffsB[wffB.hash] = wffB
+			}
+		}
+	}
+
+	return
+}
+
+type ReplacePart interface {
+	*Wff | Predicate | Argument
+}
+
+func (wffA *Wff) Replace[RP ReplacePart](thisA RP, thisB RP, skip ...Symbol) (wffsB map[WffHash]*Wff) {
+	var (
+		predA, predB Predicate
+		argA, argB   Argument
+		wffB, wffC   *Wff
+		reps         []*Wff
+	)
+
+	if wffA == nil {
+		panic("Missing formula.")
+	}
+
+	switch valA := any(thisA).(type) {
+	case *Wff:
+		wffB = valA
+	case Predicate:
+		if predA = valA; !slices.Contains(Preds, predA) {
+			panic("Invalid predicate constant.")
+		}
+	case Argument:
+		if argA = valA; !slices.Contains(Args, argA) {
+			panic("Invalid argument constant.")
+		}
+	}
+
+	switch valB := any(thisB).(type) {
+	case *Wff:
+		wffC = valB
+	case Predicate:
+		if predB = valB; !slices.Contains(Preds, predB) {
+			panic("Invalid predicate constant.")
+		}
+	case Argument:
+		if argB = valB; !slices.Contains(Args, argB) {
+			panic("Invalid argument constant.")
+		}
+	}
+
+	wffsB = map[WffHash]*Wff{}
+
+	if predA != NoPred && predB != NoPred {
+		reps = replaceSomePreds(wffA, predA, predB, skip...)
+
+		for _, wffB = range reps {
+			wffsB[wffB.hash] = wffB
+		}
+	} else if argA != NoArg && argB != NoArg {
+		reps = replaceSomeArgs(wffA, argA, argB, skip...)
+
+		for _, wffB = range reps {
+			wffsB[wffB.hash] = wffB
+		}
+	} else if wffB != nil && wffC != nil {
+		reps = replaceSomeWffs(wffA, wffB, wffC, skip...)
+
+		for _, wffB = range reps {
+			wffsB[wffB.hash] = wffB
 		}
 	}
 

@@ -8,217 +8,199 @@ import (
 	"unicode/utf8"
 )
 
-func NameLogic(infS InfStrength, synB SynBreadth, modS ModStrength) (name string) {
-	switch infS {
-	case Implicational:
-		name += "T"
-	case Positive:
-		name += "P"
-	case Minimal:
-		name += "M"
-	case Intuitionistic:
-		name += "I"
-	case Classical:
-		name += "C"
-	}
+var ruleToString map[NDRule]string = map[NDRule]string{
+	Solve:    "",
+	Prem:     "Prem",
+	Ass:      "Ass",
+	TopI:     fmt.Sprintf("%cI", fmla.Top),
+	ToI:      fmt.Sprintf("%cI", fmla.To),
+	ToE:      fmt.Sprintf("%cE", fmla.To),
+	Reit:     "Reit",
+	Thm:      "Thm",
+	WedgeI:   fmt.Sprintf("%cI", fmla.Wedge),
+	WedgeE:   fmt.Sprintf("%cE", fmla.Wedge),
+	VeeI:     fmt.Sprintf("%cI", fmla.Vee),
+	VeeE:     fmt.Sprintf("%cE", fmla.Vee),
+	IffI:     fmt.Sprintf("%cI", fmla.Iff),
+	IffE:     fmt.Sprintf("%cE", fmla.Iff),
+	BotI:     fmt.Sprintf("%cI", fmla.Bot),
+	BotE:     fmt.Sprintf("%cE", fmla.Bot),
+	NegI:     fmt.Sprintf("%cI", fmla.Neg),
+	NegE:     fmt.Sprintf("%cE", fmla.Neg),
+	Jan:      "Jan",
+	Göd:      "Göd",
+	Sme:      "Sme",
+	EqualI:   fmt.Sprintf("%cI", fmla.Equal),
+	EqualE:   fmt.Sprintf("%cE", fmla.Equal),
+	ForAllI:  fmt.Sprintf("%cI", fmla.ForAll),
+	ForAllE:  fmt.Sprintf("%cE", fmla.ForAll),
+	ExistsI:  fmt.Sprintf("%cI", fmla.Exists),
+	ExistsE:  fmt.Sprintf("%cE", fmla.Exists),
+	BoxCon:   fmt.Sprintf("%cCon", fmla.Box),
+	DmdCon:   fmt.Sprintf("%cCon", fmla.Dmd),
+	BoxIntEw: fmt.Sprintf("%cInt[Ew]", fmla.Box),
+	DmdIntEw: fmt.Sprintf("%cInt[Ew]", fmla.Dmd),
+	BoxIntEn: fmt.Sprintf("%cInt[En]", fmla.Box),
+	DmdIntEn: fmt.Sprintf("%cInt[En]", fmla.Dmd),
+	BoxIntEs: fmt.Sprintf("%cInt[Es]", fmla.Box),
+	DmdIntEs: fmt.Sprintf("%cInt[Es]", fmla.Dmd),
+	DmdI:     fmt.Sprintf("%cI", fmla.Dmd),
+	BoxMon:   fmt.Sprintf("%cMon", fmla.Box),
+	DmdMon:   fmt.Sprintf("%cMon", fmla.Dmd),
+	BoxE:     fmt.Sprintf("%cE", fmla.Box),
+	DmdE:     fmt.Sprintf("%cE", fmla.Dmd),
+	BoxI:     fmt.Sprintf("%cI", fmla.Box),
+	NegDmdI:  fmt.Sprintf("%c%cI", fmla.Neg, fmla.Dmd),
+	BoxAgg:   fmt.Sprintf("%cAgg", fmla.Box),
+	ReitC:    "Reit[C]",
+	ReitK:    "Reit[K]",
+	RuleD:    "D",
+	IntroT:   "TI",
+	ElimT:    "TE",
+	Intro4:   "4I",
+	Elim4:    "4E",
+	IntroB:   "BI",
+	ElimB:    "BE",
+	Intro5:   "5I",
+	Elim5:    "5E",
+}
 
-	switch {
-	case synB%QL == 0:
-		name += "QL"
-	case synB%NL == 0:
-		name += "NL"
-	case synB%PL == 0:
-		name += "PL"
-	}
+func equalizeCellWidths(rows [][4]string) (rowsE [][4]string) {
+	var (
+		lenR, dex              int
+		row                    [4]string
+		max0, max1, max2, max3 int
+	)
 
-	if synB%I == 0 {
-		name += "i"
-	}
+	if lenR = len(rows); 0 < lenR {
+		rowsE = make([][4]string, lenR)
 
-	if synB%ML == 0 {
-		name += "+"
+		for _, row = range rows {
+			max0 = max(max0, utf8.RuneCountInString(row[0]))
 
-		if modS%ModalK == 0 {
-			name += "K"
+			max1 = max(max1, utf8.RuneCountInString(row[1]))
+
+			max2 = max(max2, utf8.RuneCountInString(row[2]))
+
+			max3 = max(max3, utf8.RuneCountInString(row[3]))
 		}
 
-		if modS%ModalD == 0 {
-			name += "D"
-		}
+		for dex = range rows {
+			lenR = utf8.RuneCountInString(rows[dex][0])
 
-		if modS%ModalM == 0 {
-			name += "M"
-		}
+			rowsE[dex][0] = rows[dex][0] + strings.Repeat(" ", max0-lenR)
 
-		if modS%Modal4 == 0 {
-			name += "4"
-		}
+			lenR = utf8.RuneCountInString(rows[dex][1])
 
-		if modS%ModalB == 0 {
-			name += "B"
+			rowsE[dex][1] = rows[dex][1] + strings.Repeat(" ", max1-lenR)
+
+			lenR = utf8.RuneCountInString(rows[dex][2])
+
+			rowsE[dex][2] = strings.Repeat(" ", max2-lenR) + rows[dex][2]
+
+			rowsE[dex][3] = rows[dex][3]
 		}
 	}
 
 	return
 }
 
-var ruleToText map[NDRule]string = map[NDRule]string{
-	Solve:        "SL",
-	Premise:      "PR",
-	Assumption:   "AS",
-	TopIntro:     fmt.Sprintf("%cI", fmla.Top),
-	ToIntro:      fmt.Sprintf("%cI", fmla.To),
-	ToElim:       fmt.Sprintf("%cE", fmla.To),
-	Reiteration:  "RE",
-	TopElim:      fmt.Sprintf("%cE", fmla.Top),
-	WedgeIntro:   fmt.Sprintf("%cI", fmla.Wedge),
-	WedgeElim:    fmt.Sprintf("%cE", fmla.Wedge),
-	VeeIntro:     fmt.Sprintf("%cI", fmla.Vee),
-	VeeElim:      fmt.Sprintf("%cE", fmla.Vee),
-	IffIntro:     fmt.Sprintf("%cI", fmla.Iff),
-	IffElim:      fmt.Sprintf("%cE", fmla.Iff),
-	BotIntro:     fmt.Sprintf("%cI", fmla.Bot),
-	BotElim:      fmt.Sprintf("%cE", fmla.Bot),
-	NegIntro:     fmt.Sprintf("%cI", fmla.Neg),
-	NegElim:      fmt.Sprintf("%cE", fmla.Neg),
-	ForAllIntro:  fmt.Sprintf("%cI", fmla.ForAll),
-	ForAllElim:   fmt.Sprintf("%cE", fmla.ForAll),
-	ExistsIntro:  fmt.Sprintf("%cI", fmla.Exists),
-	ExistsElim:   fmt.Sprintf("%cE", fmla.Exists),
-	EqualsIntro:  fmt.Sprintf("%cI", fmla.Equals),
-	EqualsElim:   fmt.Sprintf("%cE", fmla.Equals),
-	BoxIntro:     fmt.Sprintf("%cI", fmla.Box),
-	BoxElimC:     fmt.Sprintf("%cE", fmla.Box),
-	BoxElimW:     fmt.Sprintf("%cE", fmla.Box),
-	DiamondElim:  fmt.Sprintf("%cE", fmla.Diamond),
-	DiamondIntro: fmt.Sprintf("%cI", fmla.Diamond),
-	ElimD:        fmt.Sprintf("%cED", fmla.Box),
-	IntroM:       fmt.Sprintf("%cIM", fmla.Diamond),
-	ElimM:        fmt.Sprintf("%cEM", fmla.Box),
-	Intro4:       fmt.Sprintf("%cI4", fmla.Box),
-	Elim4:        fmt.Sprintf("%cE4", fmla.Diamond),
-	IntroB:       fmt.Sprintf("%cIB", fmla.Box),
-	ElimB:        fmt.Sprintf("%cEB", fmla.Diamond),
-}
-
-func equalizeCellWidths(rows [][4]string) (rowsU [][4]string) {
+func (prf *Prf) Flatten() (lnsF []*Line) {
 	var (
-		dex                                            int
-		row                                            [4]string
-		max0, max1, max2, max3, len0, len1, len2, len3 int
+		lnsI   []*Line
+		prfI   *Prf
+		dexF   int
+		lnF    *Line
+		has    bool
+		traceJ map[*Line]bool
 	)
 
-	for _, row = range rows {
-		max0 = max(max0, utf8.RuneCountInString(row[0]))
+	lnsF = append(lnsF, prf.lns...)
 
-		max1 = max(max1, utf8.RuneCountInString(row[1]))
+	for _, prfI = range prf.prfsI {
+		lnsI = prfI.Flatten()
 
-		max2 = max(max2, utf8.RuneCountInString(row[2]))
+		for dexF, lnF = range lnsF {
+			if !IsDischargeRule(lnF.rule) {
+				continue
+			}
 
-		max3 = max(max3, utf8.RuneCountInString(row[3]))
-	}
+			traceJ, _ = lnF.TraceJusts(false)
 
-	for dex = range rows {
-		len0 = utf8.RuneCountInString(rows[dex][0])
+			if has = slices.ContainsFunc(lnsI, func(lnI *Line) (con bool) { con = traceJ[lnI]; return }); has {
+				lnsF = slices.Insert(lnsF, dexF, lnsI...)
 
-		rows[dex][0] += strings.Repeat(" ", max0-len0)
-
-		len1 = utf8.RuneCountInString(rows[dex][1])
-
-		rows[dex][1] += strings.Repeat(" ", max1-len1)
-
-		len2 = utf8.RuneCountInString(rows[dex][2])
-
-		rows[dex][2] = strings.Repeat(" ", max2-len2) + rows[dex][2]
-
-		len3 = utf8.RuneCountInString(rows[dex][3])
-
-		rows[dex][3] += strings.Repeat(" ", max3-len3)
-	}
-
-	rowsU = rows
-
-	return
-}
-
-func newJustificationString(ln *Line, lns []*Line) (sJ string) {
-	var (
-		dexJ1, dexJ2, dexJ3 int
-	)
-
-	if sJ = ruleToText[ln.rule]; ln.rule == Assumption {
-		sJ += ruleToText[ln.prf.purp]
-	}
-
-	switch {
-	case ln.j3 != nil:
-		dexJ1 = slices.IndexFunc(lns, func(lnN *Line) (has bool) { has = lnN == ln.j1; return }) + 1
-
-		dexJ2 = slices.IndexFunc(lns, func(lnN *Line) (has bool) { has = lnN == ln.j2; return }) + 1
-
-		dexJ3 = slices.IndexFunc(lns, func(lnN *Line) (has bool) { has = lnN == ln.j3; return }) + 1
-
-		switch ln.rule {
-		case ExistsElim, DiamondElim:
-			sJ += fmt.Sprintf("(%d,%d-%d)", dexJ1, dexJ2, dexJ3)
-		default:
-			sJ += fmt.Sprintf("(%d,%d,%d)", dexJ1, dexJ2, dexJ3)
+				break
+			}
 		}
-	case ln.j2 != nil:
-		dexJ1 = slices.IndexFunc(lns, func(lnN *Line) (has bool) { has = lnN == ln.j1; return }) + 1
 
-		dexJ2 = slices.IndexFunc(lns, func(lnN *Line) (has bool) { has = lnN == ln.j2; return }) + 1
-
-		switch ln.rule {
-		case ToIntro, NegIntro, ForAllIntro, BoxIntro:
-			sJ += fmt.Sprintf("(%d-%d)", dexJ1, dexJ2)
-		default:
-			sJ += fmt.Sprintf("(%d,%d)", dexJ1, dexJ2)
+		if !has {
+			lnsF = append(lnsF, lnsI...)
 		}
-	case ln.j1 != nil:
-		dexJ1 = slices.IndexFunc(lns, func(lnN *Line) (has bool) { has = lnN == ln.j1; return }) + 1
-
-		sJ += fmt.Sprintf("(%d)", dexJ1)
 	}
 
 	return
 }
 
-func (prf *Proof) ConvertToFitchString() (sF string) {
+func (prf *Prf) FitchFormat() (fitch string) {
 	var (
-		lns  []*Line
-		dex  int
-		ln   *Line
-		row  [4]string
-		d    int
-		rows [][4]string
+		lns             []*Line
+		lenL, dex, numJ int
+		rows            [][4]string
+		lnToDex         map[*Line]int
+		ln, j1, j2      *Line
 	)
 
-	lns = prf.FlattenProof()
+	lns = prf.Flatten()
 
-	for dex, ln = range lns {
-		row = [4]string{}
+	if lenL = len(lns); 0 < lenL {
+		rows, lnToDex = make([][4]string, lenL), map[*Line]int{}
 
-		row[0] = fmt.Sprintf("%d. ", dex+1)
+		for dex, ln = range lns {
+			lnToDex[ln] = dex + 1
 
-		d = ln.prf.GetProofDepth()
+			// The first index houses the line number.
+			rows[dex][0] = fmt.Sprintf("%d.", dex+1)
 
-		row[1] = strings.Repeat("| ", d)
-		row[1] += fmla.GetWffString(ln.wff)
+			// The second index holds the line and proof depth (represented by repeating '|' characters).
+			if 0 < ln.prf.depthP {
+				rows[dex][1] += fmt.Sprintf("%s%s", strings.Repeat("| ", ln.prf.depthP), ln.wff.String())
+			} else {
+				rows[dex][1] += fmt.Sprintf("%s", ln.wff.String())
+			}
 
-		row[2] = newJustificationString(ln, lns)
+			// The third index holds the justification for the line.
+			if ln.rule == Ass { // Assumptions receive accompanying purposes.
+				// The colon anticipates the wffG in the fourth index.
+				rows[dex][2] = fmt.Sprintf("%s%s", ruleToString[ln.rule], ruleToString[ln.prf.purp])
+			} else {
+				rows[dex][2] = fmt.Sprintf("%s", ruleToString[ln.rule])
+			}
 
-		if ln.rule == Assumption || dex == 0 {
-			row[3] = ": " + fmla.GetWffString(ln.prf.wffG)
+			j1, j2, numJ = ln.Justs()
+
+			switch numJ {
+			case 2:
+				if IsDischargeRule(ln.rule) {
+					rows[dex][2] += fmt.Sprintf("(%d-%d)", lnToDex[j1], lnToDex[j2])
+				} else {
+					rows[dex][2] += fmt.Sprintf("(%d,%d)", lnToDex[j1], lnToDex[j2])
+				}
+			case 1:
+				rows[dex][2] += fmt.Sprintf("(%d)", lnToDex[j1])
+			}
+
+			// The fourth index holds the wffG of an inner proof.
+			if ln.rule == Ass {
+				rows[dex][3] = fmt.Sprintf("⊢ %s", ln.prf.wffG.String())
+			}
 		}
-
-		rows = append(rows, row)
 	}
 
 	rows = equalizeCellWidths(rows)
 
-	for _, row = range rows {
-		sF += fmt.Sprintf("%s %s %s%s\n", row[0], row[1], row[2], row[3])
+	for dex = range rows {
+		fitch += fmt.Sprintf("%s %s %s %s\n", rows[dex][0], rows[dex][1], rows[dex][2], rows[dex][3])
 	}
 
 	return
