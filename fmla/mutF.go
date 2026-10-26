@@ -89,47 +89,47 @@ func replaceSomePreds(wffA *Wff, predA, predB Predicate, skip ...Symbol) (wffsB 
 		subsL, subsR     []*Wff
 	)
 
-	if slices.Contains(skip, wffA.mop) {
+	switch {
+	case wffA.kind == Atomic:
+		if wffA.pred == predA {
+			wffB = NewAtomicWff(predB, wffA.args...)
+
+			wffsB = []*Wff{wffA.DeepCopy(), wffB}
+		} else {
+			wffsB = []*Wff{wffA.DeepCopy()}
+		}
+	case slices.Contains(skip, wffA.mop): // Do not continue with replacements.
 		wffsB = []*Wff{wffA.DeepCopy()}
-	} else {
-		switch wffA.kind {
-		case Atomic:
-			if wffA.pred == predA {
-				wffB = NewAtomicWff(predB, wffA.args...)
+	case wffA.kind == Unary:
+		subsL = replaceSomePreds(wffA.subL, predA, predB, skip...)
 
-				wffsB = []*Wff{wffA.DeepCopy(), wffB}
-			} else {
-				wffsB = []*Wff{wffA.DeepCopy()}
-			}
-		case Unary:
-			subsL = replaceSomePreds(wffA.subL, predA, predB, skip...)
+		for _, subL = range subsL {
+			wffB = NewUnaryWff(wffA.mop, subL)
 
-			for _, subL = range subsL {
-				wffB = NewUnaryWff(wffA.mop, subL)
+			wffsB = append(wffsB, wffB)
+		}
+	case wffA.kind == Binary:
+		subsL = replaceSomePreds(wffA.subL, predA, predB, skip...)
+
+		subsR = replaceSomePreds(wffA.subR, predA, predB, skip...)
+
+		for _, subL = range subsL {
+			for _, subR = range subsR {
+				wffB = NewBinaryWff(wffA.mop, subL, subR)
 
 				wffsB = append(wffsB, wffB)
 			}
-		case Binary:
-			subsL, subsR = replaceSomePreds(wffA.subL, predA, predB, skip...), replaceSomePreds(wffA.subR, predA, predB, skip...)
+		}
+	case wffA.kind == Quantified:
+		if wffA.pv == predA {
+			wffsB = []*Wff{wffA.DeepCopy()}
+		} else {
+			subsL = replaceSomePreds(wffA.subL, predA, predB, skip...)
 
 			for _, subL = range subsL {
-				for _, subR = range subsR {
-					wffB = NewBinaryWff(wffA.mop, subL, subR)
+				wffB = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
 
-					wffsB = append(wffsB, wffB)
-				}
-			}
-		case Quantified:
-			if wffA.pv == predA {
-				wffsB = []*Wff{wffA.DeepCopy()}
-			} else {
-				subsL = replaceSomePreds(wffA.subL, predA, predB, skip...)
-
-				for _, subL = range subsL {
-					wffB = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
-
-					wffsB = append(wffsB, wffB)
-				}
+				wffsB = append(wffsB, wffB)
 			}
 		}
 	}
@@ -178,51 +178,51 @@ func replaceSomeArgs(wffA *Wff, argA, argB Argument, skip ...Symbol) (wffsB []*W
 		combo            []Argument
 	)
 
-	if slices.Contains(skip, wffA.mop) {
-		wffsB = []*Wff{wffA.DeepCopy()}
-	} else {
-		switch wffA.kind {
-		case Atomic:
-			if slices.Contains(wffA.args, argA) {
-				combos = argCombos(wffA.args, argA, argB)
+	switch {
+	case wffA.kind == Atomic:
+		if slices.Contains(wffA.args, argA) {
+			combos = argCombos(wffA.args, argA, argB)
 
-				for _, combo = range combos {
-					wffB = NewAtomicWff(wffA.pred, combo...)
-
-					wffsB = append(wffsB, wffB)
-				}
-			} else {
-				wffsB = []*Wff{wffA.DeepCopy()}
-			}
-		case Unary:
-			subsL = replaceSomeArgs(wffA.subL, argA, argB, skip...)
-
-			for _, subL = range subsL {
-				wffB = NewUnaryWff(wffA.mop, subL)
+			for _, combo = range combos {
+				wffB = NewAtomicWff(wffA.pred, combo...)
 
 				wffsB = append(wffsB, wffB)
 			}
-		case Binary:
-			subsL, subsR = replaceSomeArgs(wffA.subL, argA, argB, skip...), replaceSomeArgs(wffA.subR, argA, argB, skip...)
+		} else {
+			wffsB = []*Wff{wffA.DeepCopy()}
+		}
+	case slices.Contains(skip, wffA.mop): // Do not continue with replacements.
+		wffsB = []*Wff{wffA.DeepCopy()}
+	case wffA.kind == Unary:
+		subsL = replaceSomeArgs(wffA.subL, argA, argB, skip...)
+
+		for _, subL = range subsL {
+			wffB = NewUnaryWff(wffA.mop, subL)
+
+			wffsB = append(wffsB, wffB)
+		}
+	case wffA.kind == Binary:
+		subsL = replaceSomeArgs(wffA.subL, argA, argB, skip...)
+
+		subsR = replaceSomeArgs(wffA.subR, argA, argB, skip...)
+
+		for _, subL = range subsL {
+			for _, subR = range subsR {
+				wffB = NewBinaryWff(wffA.mop, subL, subR)
+
+				wffsB = append(wffsB, wffB)
+			}
+		}
+	case wffA.kind == Quantified:
+		if wffA.av == argA {
+			wffsB = []*Wff{wffA.DeepCopy()}
+		} else {
+			subsL = replaceSomeArgs(wffA.subL, argA, argB, skip...)
 
 			for _, subL = range subsL {
-				for _, subR = range subsR {
-					wffB = NewBinaryWff(wffA.mop, subL, subR)
+				wffB = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
 
-					wffsB = append(wffsB, wffB)
-				}
-			}
-		case Quantified:
-			if wffA.av == argA {
-				wffsB = []*Wff{wffA.DeepCopy()}
-			} else {
-				subsL = replaceSomeArgs(wffA.subL, argA, argB, skip...)
-
-				for _, subL = range subsL {
-					wffB = NewQuantifiedWff(wffA.mop, subL, wffA.pv, wffA.av)
-
-					wffsB = append(wffsB, wffB)
-				}
+				wffsB = append(wffsB, wffB)
 			}
 		}
 	}
@@ -237,11 +237,9 @@ func replaceSomeWffs(wffA *Wff, wffB, wffC *Wff, skip ...Symbol) (wffsD []*Wff) 
 		subL, subR   *Wff
 	)
 
-	if slices.Contains(skip, wffA.mop) {
-		wffsD = []*Wff{wffA.DeepCopy()}
-	} else if wffA.Is(wffB) {
+	if wffA.Is(wffB) {
 		wffsD = []*Wff{wffA.DeepCopy(), wffC.DeepCopy()}
-	} else if !(wffB.Depth() < wffA.Depth()) {
+	} else if !(wffB.Depth() < wffA.Depth()) || slices.Contains(skip, wffA.mop) {
 		wffsD = []*Wff{wffA.DeepCopy()}
 	} else {
 		switch wffA.kind {
@@ -255,7 +253,9 @@ func replaceSomeWffs(wffA *Wff, wffB, wffC *Wff, skip ...Symbol) (wffsD []*Wff) 
 				wffsD = append(wffsD, wffD)
 			}
 		case Binary:
-			subsL, subsR = replaceSomeWffs(wffA.subL, wffB, wffC, skip...), replaceSomeWffs(wffA.subR, wffB, wffC, skip...)
+			subsL = replaceSomeWffs(wffA.subL, wffB, wffC, skip...)
+
+			subsR = replaceSomeWffs(wffA.subR, wffB, wffC, skip...)
 
 			for _, subL = range subsL {
 				for _, subR = range subsR {

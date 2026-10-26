@@ -107,11 +107,11 @@ func TestRuleFitsSynBreadth(t *testing.T) {
 
 func TestHasAnyModality(t *testing.T) {
 	var (
-		mods []pr.ModStrength
-		mod  pr.ModStrength
+		mods []pr.ModSt
+		mod  pr.ModSt
 	)
 
-	mods = []pr.ModStrength{pr.NoModality, pr.ModalEw, pr.ModalEn, pr.ModalEs, pr.ModalM, pr.ModalN, pr.ModalC,
+	mods = []pr.ModSt{pr.NoModality, pr.ModalEw, pr.ModalEn, pr.ModalEs, pr.ModalM, pr.ModalN, pr.ModalC,
 		pr.ModalK, pr.ModalD, pr.ModalT, pr.Modal4, pr.ModalB, pr.Modal5}
 
 	t.Run("Each Modality Has No Modality as Strength", func(t *testing.T) {
@@ -123,7 +123,7 @@ func TestHasAnyModality(t *testing.T) {
 	})
 
 	t.Run("All Modalities Have Any Modality as Strength", func(t *testing.T) {
-		var prod pr.ModStrength
+		var prod pr.ModSt
 
 		prod = pr.NoModality
 
@@ -141,8 +141,8 @@ func TestHasAnyModality(t *testing.T) {
 
 type ruleFitsTestCase struct {
 	rule   pr.NDRule
-	inf    pr.InfStrength
-	mod    pr.ModStrength
+	inf    pr.InfSt
+	mod    pr.ModSt
 	want   bool
 	panics bool
 	msg    string
@@ -254,9 +254,9 @@ func TestRuleFitsStrengths(t *testing.T) {
 }
 
 type nameTestCase struct {
-	inf  pr.InfStrength
+	inf  pr.InfSt
 	syn  pr.SynBreadth
-	mod  pr.ModStrength
+	mod  pr.ModSt
 	want string
 }
 
@@ -292,9 +292,9 @@ func TestNameLogic(t *testing.T) {
 
 type extractTestCase struct {
 	name   string
-	inf    pr.InfStrength
+	inf    pr.InfSt
 	syn    pr.SynBreadth
-	mod    pr.ModStrength
+	mod    pr.ModSt
 	panics bool
 	msg    string
 }
@@ -328,9 +328,9 @@ func TestExtractLogic(t *testing.T) {
 	for _, etc = range extractTestCases {
 		t.Run("Extraction of "+etc.name, func(t *testing.T) {
 			var (
-				inf pr.InfStrength
+				inf pr.InfSt
 				syn pr.SynBreadth
-				mod pr.ModStrength
+				mod pr.ModSt
 			)
 
 			if etc.panics {

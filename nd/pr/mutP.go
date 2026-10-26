@@ -66,7 +66,7 @@ func (prf *Prf) AddLine(wff *fmla.Wff, rule NDRule, js ...*Line) (ln *Line, pms 
 		panic(fmt.Sprintf("%d justifications for rule %q, need %d.", lenJ, ruleToString[rule], rulePCount[rule]))
 	}
 
-	for lenJ < 2 {
+	for lenJ < 3 {
 		js = append(js, nil)
 
 		lenJ += 1
@@ -77,6 +77,7 @@ func (prf *Prf) AddLine(wff *fmla.Wff, rule NDRule, js ...*Line) (ln *Line, pms 
 		rule: rule,
 		j1:   js[0],
 		j2:   js[1],
+		j3:   js[2],
 
 		prf: prf,
 	}

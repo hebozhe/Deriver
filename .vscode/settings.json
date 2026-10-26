@@ -1,3 +1,4 @@
 {
-  "go.testFlags": ["-cover", "-count=1", "-timeout=5m", "-cpuprofile=cpu.prof"]
+  "go.testFlags": ["-v", "-cover", "-count=1", "-timeout=30s", "-cpuprofile=cpu.prof"],
+  "go.testExplorer.concatenateMessages": true
 }

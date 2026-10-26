@@ -21,7 +21,7 @@ const (
 	WedgeI // A,B ⊢PPL A∧B
 	WedgeE // A∧B ⊢PPL B; A∧B ⊢PPL B
 	VeeI   // A ⊢PPL A∨B; A ⊢PPL B∨A
-	VeeE   // A∨B,A→C ⊢PPL C∨B; A∨B,B→C ⊢PPL A∨C; A∨A,A→B ⊢PPL B
+	VeeE   // A∨B,A→C,B→C ⊢PPL C
 	IffI   // A→B,B→A ⊢PPL A↔B
 	IffE   // A↔B ⊢PPL A→B; A↔B ⊢PPL B→A
 	// Minimal Propositional Logic (MPL)
@@ -29,12 +29,12 @@ const (
 	NegI // [A…⊥]¬I ⊢MPL ¬A
 	// Intuitionistic Propositional Logic (IPL)
 	BotE // ⊥ ⊢IPL A
-	// Jankov logic (weak LEM) (JPL)
-	Jan // A→¬B ⊢JPL ¬A∨¬B; A→¬B ⊢JPL ¬B∨¬A
+	// Jankov Propositional Logic (JPL)
+	Jan // ¬A→B ⊢JPL ¬¬A∨B
 	// Gödel-Dummett Propositional Logic (GPL)
-	Göd // (A→B)→C ⊢GPL C∨(B→A); (A→B)→C ⊢GPL (B→A)∨C
+	Göd // (A→B)→C ⊢GPL (B→A)∨C
 	// Smetanich Propositional Logic (SPL)
-	Sme // (A→B)→A ⊢SPL A∨¬B; (A→B)→A ⊢SPL ¬B∨A
+	Sme // (A→B)→C ⊢SPL (A∨¬B)∨C
 	// Classical Propositional Logic (CPL)
 	NegE // ¬¬A ⊢CPL A
 	// Implicational N-Order Logic with Identity (TNLi)
@@ -126,7 +126,7 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	WedgeI:   2,
 	WedgeE:   1,
 	VeeI:     1,
-	VeeE:     2,
+	VeeE:     3,
 	IffI:     2,
 	IffE:     1,
 	BotI:     2,
@@ -141,7 +141,7 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	ForAllI:  2,
 	ForAllE:  1,
 	ExistsI:  1,
-	ExistsE:  2,
+	ExistsE:  3,
 	BoxCon:   2,
 	DmdCon:   2,
 	BoxIntEw: 1,
@@ -153,8 +153,8 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	DmdI:     1,
 	BoxMon:   1,
 	DmdMon:   1,
-	BoxE:     2,
-	DmdE:     2,
+	BoxE:     3,
+	DmdE:     3,
 	BoxI:     2,
 	NegDmdI:  2,
 	BoxAgg:   2,

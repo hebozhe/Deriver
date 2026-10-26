@@ -8,14 +8,14 @@ import (
 type Drv struct {
 	Prf   *pr.Prf
 	Syn   pr.SynBreadth
-	Inf   pr.InfStrength
-	Mod   pr.ModStrength
+	Inf   pr.InfSt
+	Mod   pr.ModSt
 	Logic string // The name of the logic.
 	rules []pr.NDRule
 	Met   bool // Whether the goal of the base proof was met.
 }
 
-func NewDeriver(inf pr.InfStrength, mod pr.ModStrength, wffG *fmla.Wff, wffsP ...*fmla.Wff) (drv *Drv) {
+func NewDeriver(inf pr.InfSt, mod pr.ModSt, wffG *fmla.Wff, wffsP ...*fmla.Wff) (drv *Drv) {
 	var (
 		wffs []*fmla.Wff
 		syn  pr.SynBreadth

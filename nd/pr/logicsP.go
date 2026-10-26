@@ -9,8 +9,8 @@ import (
 )
 
 type SynBreadth uint
-type InfStrength uint
-type ModStrength uint
+type InfSt uint
+type ModSt uint
 
 const (
 	bL SynBreadth = 1  // Base
@@ -126,7 +126,7 @@ func RuleFitsSynBreadth(rule NDRule, syn SynBreadth) (fits bool) {
 }
 
 const (
-	NoInference InfStrength = iota
+	NoInference InfSt = iota
 	Implicational
 	Positive
 	Minimal
@@ -138,27 +138,27 @@ const (
 )
 
 const (
-	NoModality ModStrength = 1
+	NoModality ModSt = 1
 	// Non-normal modal logics.
-	ModalEw ModStrength = 2
-	ModalEn ModStrength = 3
-	ModalEs ModStrength = 5
-	ModalM  ModStrength = 7
-	ModalN  ModStrength = 11
-	ModalC  ModStrength = 13
+	ModalEw ModSt = 2
+	ModalEn ModSt = 3
+	ModalEs ModSt = 5
+	ModalM  ModSt = 7
+	ModalN  ModSt = 11
+	ModalC  ModSt = 13
 	// Normal modal logic.
-	ModalK ModStrength = 17
+	ModalK ModSt = 17
 	// Modal logic extensions.
-	ModalD ModStrength = 19
-	ModalT ModStrength = 23
-	Modal4 ModStrength = 29
-	ModalB ModStrength = 31
-	Modal5 ModStrength = 37
+	ModalD ModSt = 19
+	ModalT ModSt = 23
+	Modal4 ModSt = 29
+	ModalB ModSt = 31
+	Modal5 ModSt = 37
 )
 
-func HasAnyModality(modA ModStrength, modsB ...ModStrength) (has bool) {
+func HasAnyModality(modA ModSt, modsB ...ModSt) (has bool) {
 	var (
-		modB ModStrength
+		modB ModSt
 	)
 
 	for _, modB = range modsB {
@@ -170,7 +170,7 @@ func HasAnyModality(modA ModStrength, modsB ...ModStrength) (has bool) {
 	return
 }
 
-func RuleFitsStrengths(rule NDRule, inf InfStrength, mod ModStrength) (fits bool) {
+func RuleFitsStrengths(rule NDRule, inf InfSt, mod ModSt) (fits bool) {
 	switch rule {
 	case Solve, Prem, Ass:
 		fits = !(inf < NoInference)
@@ -236,7 +236,7 @@ func RuleFitsStrengths(rule NDRule, inf InfStrength, mod ModStrength) (fits bool
 	return
 }
 
-func NameLogic(inf InfStrength, syn SynBreadth, mod ModStrength) (name string) {
+func NameLogic(inf InfSt, syn SynBreadth, mod ModSt) (name string) {
 	switch inf {
 	case Implicational:
 		name += "T"
@@ -320,7 +320,7 @@ func NameLogic(inf InfStrength, syn SynBreadth, mod ModStrength) (name string) {
 	return
 }
 
-func ExtractLogic(name string) (inf InfStrength, syn SynBreadth, mod ModStrength) {
+func ExtractLogic(name string) (inf InfSt, syn SynBreadth, mod ModSt) {
 	var (
 		lenN int
 	)
@@ -442,8 +442,8 @@ func StrongestLogic(syn SynBreadth) (name string) {
 
 func WeakenLogic(name string) (weakened []string) {
 	var (
-		inf                    InfStrength
-		mod                    ModStrength
+		inf                    InfSt
+		mod                    ModSt
 		infSeg, modSeg, weaker string
 	)
 
@@ -573,9 +573,9 @@ func WeakenLogic(name string) (weakened []string) {
 }
 
 type StrengthsTree struct {
-	Inf      InfStrength
+	Inf      InfSt
 	Syn      SynBreadth
-	Mod      ModStrength
+	Mod      ModSt
 	Name     string
 	Branches []*StrengthsTree
 }
@@ -583,8 +583,8 @@ type StrengthsTree struct {
 func branchStrengthsTree(st *StrengthsTree) (nodes int) {
 	var (
 		name string
-		inf  InfStrength
-		mod  ModStrength
+		inf  InfSt
+		mod  ModSt
 		stB  *StrengthsTree
 	)
 

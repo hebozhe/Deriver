@@ -5,11 +5,12 @@ import (
 	"Deriver/nd/pr"
 )
 
-func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfStrength, mod pr.ModStrength) (tot int) {
+func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfSt, mod pr.ModSt) (tot int) {
 	var (
 		subL, subR, newA, newG *fmla.Wff
-		prfI                   *pr.Prf
+		prfO, prfI             *pr.Prf
 		pms                    pr.PrfMutStatus
+		lnA                    *pr.Line
 	)
 
 	switch wffG.Mop() {
@@ -46,12 +47,18 @@ func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfStrength, mod pr.ModStre
 					}
 				}
 			}
-		default:
+		default: // G is A.
+			if pr.RuleFitsStrengths(pr.NegE, inf, mod) {
+				// ¬¬A ⊢CPL A.
+				newG = fmla.NewUnaryWff(fmla.Neg, fmla.NewUnaryWff(fmla.Neg, wffG))
+
+				tot += goalAssume(prfG, newG, inf, mod)
+			}
 		}
 	case fmla.To: // G is A→B.
 		if pr.RuleFitsStrengths(pr.ToI, inf, mod) {
 			// [A…B]→I ⊢TPL A→B.
-			subL, subR, _ = wffG.Subs()
+			subL, subR, _ = wffG.Subs() // WARNING! Do not reassign subL or subR beyond this point.
 
 			if prfI, pms = prfG.AddPrf(subL, subR, wffG, pr.ToI); pms == pr.StatusOK { // ⊢TPL A.
 				tot += 1 + goalAssume(prfI, subR, inf, mod)
@@ -63,26 +70,26 @@ func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfStrength, mod pr.ModStre
 				// If ⊢ A→B,B→A, then A→B,B→A ⊢PPL+Ew □A→□B.
 				newA, newG = fmla.NewAtomicWff(fmla.Top), fmla.NewBinaryWff(fmla.To, subL.SubL(), subR.SubL())
 
-				if prfI, pms = prfG.AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
+				if prfI, pms = prfG.Root(prfG.DepthM()).AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
 					tot += 1 + goalAssume(prfI, newG, inf, mod)
 				}
 
 				newG = fmla.NewBinaryWff(fmla.To, subR.SubL(), subL.SubL())
 
-				if prfI, pms = prfG.AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
+				if prfI, pms = prfG.Root(prfG.DepthM()).AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
 					tot += 1 + goalAssume(prfI, newG, inf, mod)
 				}
 			} else if subL.Mop() == fmla.Dmd && subR.Mop() == fmla.Dmd { // G is ◇A→◇B.
 				// If ⊢ A→B,B→A, then A→B,B→A ⊢PPL+Ew ◇A→◇B.
 				newA, newG = fmla.NewAtomicWff(fmla.Top), fmla.NewBinaryWff(fmla.To, subL.SubL(), subR.SubL())
 
-				if prfI, pms = prfG.AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
+				if prfI, pms = prfG.Root(prfG.DepthM()).AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
 					tot += 1 + goalAssume(prfI, newG, inf, mod)
 				}
 
 				newG = fmla.NewBinaryWff(fmla.To, subR.SubL(), subL.SubL())
 
-				if prfI, pms = prfG.AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
+				if prfI, pms = prfG.Root(prfG.DepthM()).AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
 					tot += 1 + goalAssume(prfI, newG, inf, mod)
 				}
 			}
@@ -93,14 +100,14 @@ func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfStrength, mod pr.ModStre
 				// If ⊢ A→B, then A→B ⊢PPL+M □A→□B.
 				newA, newG = fmla.NewAtomicWff(fmla.Top), fmla.NewBinaryWff(fmla.To, subL.SubL(), subR.SubL())
 
-				if prfI, pms = prfG.AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
+				if prfI, pms = prfG.Root(prfG.DepthM()).AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
 					tot += 1 + goalAssume(prfI, newG, inf, mod)
 				}
 			} else if subL.Mop() == fmla.Dmd && subR.Mop() == fmla.Dmd { // G is ◇A→◇B.
 				// If ⊢ A→B, then A→B ⊢PPL+M ◇A→◇B.
 				newA, newG = fmla.NewAtomicWff(fmla.Top), fmla.NewBinaryWff(fmla.To, subL.SubL(), subR.SubL())
 
-				if prfI, pms = prfG.AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
+				if prfI, pms = prfG.Root(prfG.DepthM()).AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
 					tot += 1 + goalAssume(prfI, newG, inf, mod)
 				}
 			}
@@ -115,54 +122,9 @@ func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfStrength, mod pr.ModStre
 	case fmla.Vee: // G is A∨B.
 		if pr.RuleFitsStrengths(pr.VeeI, inf, mod) {
 			// A ⊢PPL A∨B; A ⊢PPL B∨A.
-			subL, subR, _ = wffG.Subs()
+			subL, subR, _ = wffG.Subs() // WARNING! Do not reassign subL or subR beyond this point.
 
 			tot += goalAssume(prfG, subL, inf, mod) + goalAssume(prfG, subR, inf, mod)
-		}
-
-		if pr.RuleFitsStrengths(pr.Jan, inf, mod) {
-			if subL, subR, _ = wffG.Subs(); subL.Mop() == fmla.Neg && subR.Mop() == fmla.Neg { // G is ¬A∨¬B.
-				// A→¬B ⊢JPL ¬A∨¬B.
-				newG = fmla.NewBinaryWff(fmla.To, subL.SubL(), subR)
-
-				tot += goalAssume(prfG, newG, inf, mod)
-			}
-		}
-
-		if pr.RuleFitsStrengths(pr.Göd, inf, mod) {
-			subL, subR, _ = wffG.Subs()
-
-			if subL.Mop() == fmla.To { // G is (B→A)∨C.
-				// (A→B)→C ⊢GPL (B→A)∨C.
-				newG = fmla.MustParseWffFromTemplate("(%s→%s)→%s", subL.SubR(), subL.SubL(), subR)
-
-				tot += goalAssume(prfG, newG, inf, mod)
-			}
-
-			if subR.Mop() == fmla.To { // G is C∨(B→A).
-				// (A→B)→C ⊢GPL C∨(B→A).
-				newG = fmla.MustParseWffFromTemplate("(%s→%s)→%s", subR.SubR(), subR.SubL(), subL)
-
-				tot += goalAssume(prfG, newG, inf, mod)
-			}
-		}
-
-		if pr.RuleFitsStrengths(pr.Sme, inf, mod) {
-			subL, subR, _ = wffG.Subs()
-
-			if subL.Mop() == fmla.Neg { // G is ¬B∨A.
-				// (A→B)→A ⊢SPL ¬B∨A.
-				newG = fmla.MustParseWffFromTemplate("(%s→%s)→%s", subR, subL.SubL(), subR)
-
-				tot += goalAssume(prfG, newG, inf, mod)
-			}
-
-			if subR.Mop() == fmla.Neg { // G is A∨¬B.
-				// (A→B)→A ⊢SPL A∨¬B.
-				newG = fmla.MustParseWffFromTemplate("(%s→%s)→%s", subL, subR.SubL(), subL)
-
-				tot += goalAssume(prfG, newG, inf, mod)
-			}
 		}
 	case fmla.Iff: // G is A↔B.
 		if pr.RuleFitsStrengths(pr.IffI, inf, mod) {
@@ -241,6 +203,40 @@ func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfStrength, mod pr.ModStre
 			}
 		}
 
+		if pr.RuleFitsStrengths(pr.BoxIntEs, inf, mod) {
+			if wffG.SubL().Mop() == fmla.Dmd { // G is ¬◇A.
+				// If ⊢ A→¬B, □A,A→¬B ⊢MPL+Es ¬◇B.
+				newA, subR = fmla.NewAtomicWff(fmla.Top), fmla.NewUnaryWff(fmla.Neg, wffG.Locate("LL"))
+
+				for prfO = range prfG.Root(prfG.DepthM()).WalkPrfPairs(pr.DistPIs(0)) {
+					for _, lnA = range keepLines(nil, prfO, mopIs(fmla.Box)) {
+						newG = fmla.NewBinaryWff(fmla.To, lnA.Wff().SubL(), subR)
+
+						if prfI, pms = prfO.Root(prfO.DepthM()).AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
+							tot += 1 + goalAssume(prfI, newG, inf, mod)
+						}
+					}
+				}
+			}
+		}
+
+		if pr.RuleFitsStrengths(pr.DmdIntEs, inf, mod) {
+			if wffG.SubL().Mop() == fmla.Box { // G is ¬□A.
+				// If ⊢ A→¬B, ◇A,A→¬B ⊢MPL+Es ¬□B.
+				newA, subR = fmla.NewAtomicWff(fmla.Top), fmla.NewUnaryWff(fmla.Neg, wffG.Locate("LL"))
+
+				for prfO = range prfG.Root(prfG.DepthM()).WalkPrfPairs(pr.DistPIs(0)) {
+					for _, lnA = range keepLines(nil, prfO, mopIs(fmla.Dmd)) {
+						newG = fmla.NewBinaryWff(fmla.To, lnA.Wff().SubL(), subR)
+
+						if prfI, pms = prfO.Root(prfO.DepthM()).AddPrf(newA, newG, newG, pr.Thm); pms == pr.StatusOK {
+							tot += 1 + goalAssume(prfI, newG, inf, mod)
+						}
+					}
+				}
+			}
+		}
+
 		if pr.RuleFitsStrengths(pr.NegDmdI, inf, mod) {
 			if wffG.SubL().Mop() == fmla.Dmd { // G is ¬◇A.
 				// [⊤…¬A]¬◇I ⊢MPL+N ¬◇A.
@@ -250,6 +246,12 @@ func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfStrength, mod pr.ModStre
 					tot += 1 + goalAssume(prfI, subR, inf, mod)
 				}
 			}
+		}
+
+		if pr.RuleFitsStrengths(pr.Jan, inf, mod) {
+			newG = fmla.NewBinaryWff(fmla.To, wffG, wffG)
+
+			tot += goalAssume(prfG.Root(prfG.DepthM()), newG, pr.Implicational, mod)
 		}
 	case fmla.ForAll: // G is ∀xΦ(x) or ∀XΦ(X).
 		if pr.RuleFitsStrengths(pr.ForAllI, inf, mod) {
@@ -308,6 +310,13 @@ func goalAssume(prfG *pr.Prf, wffG *fmla.Wff, inf pr.InfStrength, mod pr.ModStre
 					}
 				}
 			}
+		}
+
+		if pr.RuleFitsStrengths(pr.NegE, inf, mod) {
+			// ¬¬∃XΦ(X) ⊢CPL ∃XΦ(X); ¬¬∃XΦ(x) ⊢CPL ∃XΦ(x).
+			newG = fmla.NewUnaryWff(fmla.Neg, fmla.NewUnaryWff(fmla.Neg, wffG))
+
+			tot += goalAssume(prfG, newG, inf, mod)
 		}
 	case fmla.Box: // G is □A.
 		if pr.RuleFitsStrengths(pr.BoxI, inf, mod) {

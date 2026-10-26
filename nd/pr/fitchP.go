@@ -148,7 +148,7 @@ func (prf *Prf) FitchFormat() (fitch string) {
 		lenL, dex, numJ int
 		rows            [][4]string
 		lnToDex         map[*Line]int
-		ln, j1, j2      *Line
+		ln, j1, j2, j3  *Line
 	)
 
 	lns = prf.Flatten()
@@ -177,9 +177,15 @@ func (prf *Prf) FitchFormat() (fitch string) {
 				rows[dex][2] = fmt.Sprintf("%s", ruleToString[ln.rule])
 			}
 
-			j1, j2, numJ = ln.Justs()
+			j1, j2, j3, numJ = ln.Justs()
 
 			switch numJ {
+			case 3:
+				if IsDischargeRule(ln.rule) {
+					rows[dex][2] += fmt.Sprintf("(%d,%d-%d)", lnToDex[j1], lnToDex[j2], lnToDex[j3])
+				} else {
+					rows[dex][2] += fmt.Sprintf("(%d,%d,%d)", lnToDex[j1], lnToDex[j2], lnToDex[j3])
+				}
 			case 2:
 				if IsDischargeRule(ln.rule) {
 					rows[dex][2] += fmt.Sprintf("(%d-%d)", lnToDex[j1], lnToDex[j2])

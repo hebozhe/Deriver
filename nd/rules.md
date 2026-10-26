@@ -74,20 +74,24 @@ In Fitch-style proofs:
 
 ### Jankov Propositional Logic (JPL) Rules
 
+JPL grants that $\vdash_{JPL} \forall \Phi(\neg \Phi \vee \neg \neg \Phi)$.
+
 - $Jan$:
-  - $A \to \neg B \vdash_{JPL} \neg A \vee \neg B$
+  - $\neg A \to B \vdash_{JPL} \neg \neg A \vee B$
 
 ### Gödel-Dummett Propositional Logic (GPL) Rules
 
+GPL grants that $\vdash_{GPL} \forall \Phi \forall \Psi((\Phi \to \Psi) \vee (\Psi \to \Phi))$.
+
 - $Göd$:
-  - $(A \to B) \to C \vdash_{GPL} C \vee (B \to A)$
   - $(A \to B) \to C \vdash_{GPL} (B \to A) \vee C$
 
 ### Smetanich Propositional Logic (SPL) Rules
 
+SPL grants that $\vdash_{SPL} \forall \Phi \forall \Psi((\Phi \to \Psi) \vee (\Phi \vee \neg \Psi))$.
+
 - $Sme$:
-  - $(A \to B) \to A \vdash_{SPL} A \vee \neg B$
-  - $(A \to B) \to A \vdash_{SPL} \neg B \vee A$
+  - $(A \to B) \to C \vdash_{SPL} (A \vee \neg B) \vee C$
 
 ### Classical Propositional Logic (CPL) Rules
 
@@ -258,33 +262,33 @@ This is also known as "constructive modal logic K" (CK).
 
 ### Positive Propositional Logic with Modality D (PPL+D)
 
-- $(D)$:
+- $D$:
   - $\Box A \vdash_{PPL+D} \Diamond A$
 
 ### Positive Propositional Logic with Modality T (PPL+T)
 
-- $I(T)$:
+- $TI$:
   - $A \vdash_{PPL+T} \Diamond A$
-- $E(T)$:
+- $TE$:
   - $\Box A \vdash_{PPL+T} A$
 
 ### Positive Propositional Logic with Modality 4 (PPL+4)
 
-- $I(4)$:
+- $4I$:
   - $\Box A \vdash_{PPL+4} \Box \Box A$
-- $E(4)$:
+- $4E$:
   - $\Diamond \Diamond A \vdash_{PPL+4} \Diamond A$
 
 ### Positive Propositional Logic with Modality B (PPL+B)
 
-- $I(B)$:
+- $BI$:
   - $A \vdash_{PPL+B} \Box \Diamond A$
-- $E(B)$:
+- $BE$:
   - $\Diamond \Box A \vdash_{PPL+B} A$
 
 ### Positive Propositional Logic with Modality 5 (PPL+5)
 
-- $I(5)$:
+- $5I$:
   - $\Diamond A \vdash_{PPL+5} \Box \Diamond A$
-- $E(5)$:
+- $5E$:
   - $\Diamond \Box A \vdash_{PPL+5} \Box A$

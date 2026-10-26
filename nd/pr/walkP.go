@@ -171,3 +171,42 @@ func (prf *Prf) WalkTargets(critsP ...prfCrit) (prfWffSeq2 iter.Seq2[*Prf, *fmla
 
 	return
 }
+
+func (prf *Prf) ExtractAtoms(wff *fmla.Wff, wffsX ...*fmla.Wff) (wffSeq iter.Seq[*fmla.Wff]) {
+	wffSeq = func(yield func(*fmla.Wff) bool) {
+		var (
+			subs      []*fmla.Wff
+			dex, lenS int
+			sub       *fmla.Wff
+			seenAtPrf map[fmla.WffHash]bool
+		)
+
+		subs = wff.AllSubs(true, true)
+
+		seenAtPrf = map[fmla.WffHash]bool{}
+
+		for _, sub = range wffsX {
+			seenAtPrf[sub.Hash()] = true
+		}
+
+	WALKGOALATOMS_OUTER:
+		for dex, lenS = 0, len(subs); dex < lenS; dex, lenS = dex+1, len(subs) {
+			switch subs[dex].Kind() {
+			case fmla.Atomic:
+				if !seenAtPrf[subs[dex].Hash()] {
+					if yield(subs[dex]) {
+						seenAtPrf[subs[dex].Hash()] = true
+					} else {
+						break WALKGOALATOMS_OUTER
+					}
+				}
+			case fmla.Quantified:
+				for sub = range yieldInstantiations(prf, subs[dex]) {
+					subs = append(subs, sub.AllSubs(true, true)...)
+				}
+			}
+		}
+	}
+
+	return
+}

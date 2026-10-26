@@ -8,9 +8,9 @@ import (
 )
 
 type Line struct {
-	wff    *fmla.Wff // The wff at the line.
-	rule   NDRule    // The rule used to derive the line.
-	j1, j2 *Line     // Justifications of the line.
+	wff        *fmla.Wff // The wff at the line.
+	rule       NDRule    // The rule used to derive the line.
+	j1, j2, j3 *Line     // Justifications of the line.
 
 	prf *Prf // The proof where the line is located.
 }
@@ -27,13 +27,17 @@ func (ln *Line) Rule() (rule NDRule) {
 	return
 }
 
-func (ln *Line) Justs() (j1, j2 *Line, numJ int) {
+func (ln *Line) Justs() (j1, j2, j3 *Line, numJ int) {
 	if ln.j1 != nil {
 		j1, numJ = ln.j1, numJ+1
 	}
 
 	if ln.j2 != nil {
 		j2, numJ = ln.j2, numJ+1
+	}
+
+	if ln.j3 != nil {
+		j3, numJ = ln.j3, numJ+1
 	}
 
 	return
@@ -58,6 +62,10 @@ func (ln *Line) TraceJusts(withP bool) (traceJ map[*Line]bool, traceP map[*Prf]b
 
 	for 0 < lenS {
 		lnJ, stackJ = stackJ[lenS-1], stackJ[:lenS-1]
+
+		if lnJ.j3 != nil && !traceJ[lnJ.j3] {
+			traceJ[lnJ.j3], stackJ, lenS = true, append(stackJ, lnJ.j3), lenS+1
+		}
 
 		if lnJ.j2 != nil && !traceJ[lnJ.j2] {
 			traceJ[lnJ.j2], stackJ, lenS = true, append(stackJ, lnJ.j2), lenS+1
@@ -228,56 +236,65 @@ func (prf *Prf) PrfsI() (prfsI iter.Seq[*Prf]) {
 	return
 }
 
-func (prf *Prf) Leaves(depthM int) (leaves iter.Seq[*Prf]) {
+func allLeaves(prf *Prf) (prfsI []*Prf) {
 	var (
-		lenI  int
-		prfsI iter.Seq[*Prf]
+		lenI int
+		prfI *Prf
 	)
 
-	if lenI = len(prf.prfsI); 0 < lenI {
-		prfsI = func(yield func(*Prf) bool) {
-			var (
-				prfI, leaf *Prf
-			)
-
-		PRFSI_OUTER:
-			for prfI = range prf.PrfsI() {
-				for leaf = range prfI.Leaves(depthM) {
-					if !yield(leaf) {
-						break PRFSI_OUTER
-					}
-				}
-			}
-		}
+	if lenI = len(prf.prfsI); lenI == 0 {
+		prfsI = []*Prf{prf}
 	} else {
-		prfsI = func(yield func(*Prf) bool) {
-			yield(prf)
+		for _, prfI = range prf.prfsI {
+			prfsI = append(prfsI, allLeaves(prfI)...)
 		}
 	}
 
-	if -1 < depthM {
-		leaves = func(yield func(*Prf) bool) {
-			var (
-				prfI *Prf
-			)
+	return
+}
 
-			for prfI = range prfsI {
-			PRFSI_DEPTHM_BLOCK:
-				if prfI.depthM == depthM {
-					if !yield(prfI) {
-						break
-					}
-				} else if prfI.depthM < depthM { // There is no outer proof at depthM.
-					continue
-				} else if prfI.prfO != nil {
-					prfI = prfI.prfO
+func descendToDepthM(prfsI []*Prf, depthM int) (prfs []*Prf) {
+	var (
+		prfI *Prf
+	)
 
-					goto PRFSI_DEPTHM_BLOCK
-				}
+	for _, prfI = range prfsI {
+		if prfI.depthM == depthM {
+			prfs = append(prfs, prfI)
+		} else if depthM < prfI.depthM && prfI.prfO != nil {
+			prfs = append(prfs, prfI.prfO)
+		}
+	}
+
+	if !slices.Equal(prfsI, prfs) {
+		prfs = descendToDepthM(prfs, depthM)
+	}
+
+	return
+}
+
+func (prf *Prf) Leaves(depthM int, open bool) (leaves iter.Seq[*Prf]) {
+	var (
+		prfsI []*Prf
+	)
+
+	prfsI = allLeaves(prf)
+	prfsI = descendToDepthM(prfsI, depthM)
+
+	if open {
+		prfsI = slices.DeleteFunc(prfsI, func(prfI *Prf) (nix bool) { nix = !prfI.open; return })
+	}
+
+	leaves = func(yield func(*Prf) bool) {
+		var (
+			prfI *Prf
+		)
+
+		for _, prfI = range prfsI {
+			if !yield(prfI) {
+				break
 			}
 		}
-	} else {
-		leaves = prfsI
 	}
 
 	return
@@ -523,12 +540,14 @@ func (prf *Prf) HasPrf(prfI *Prf, depthM int) (has bool) {
 
 func (prf *Prf) HasLine(ln *Line) (has bool) {
 	has = slices.ContainsFunc(prf.lns, func(lnN *Line) (con bool) {
-		con = lnN.wff.Is(ln.wff) && lnN.rule == ln.rule
+		con = lnN.wff.Is(ln.wff)
 
 		return
 	})
 
-	has = has || (prf.prfO != nil && prf.prfO.depthM == prf.depthM && prf.prfO.HasLine(ln))
+	if !has && ln.rule != Reit {
+		has = prf.prfO != nil && prf.prfO.depthM == prf.depthM && prf.prfO.HasLine(ln)
+	}
 
 	return
 }

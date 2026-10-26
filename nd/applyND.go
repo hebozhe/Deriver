@@ -3,9 +3,7 @@ package nd
 import (
 	"Deriver/fmla"
 	"Deriver/nd/pr"
-	"fmt"
 	"slices"
-	"strings"
 )
 
 type ndRuleFunc func(drv *Drv) (tot int)
@@ -64,11 +62,10 @@ var ndToI ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndToE ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfO, prfI, leaf *pr.Prf
-		js1, js2         []*pr.Line
-		j1, j2           *pr.Line
-		lenJ             int
-		pms              pr.PrfMutStatus
+		prfO, prfI *pr.Prf
+		js1, js2   []*pr.Line
+		j1, j2     *pr.Line
+		pms        pr.PrfMutStatus
 	)
 
 	// A→B,A ⊢TPL B.
@@ -83,10 +80,21 @@ var ndToE ndRuleFunc = func(drv *Drv) (tot int) {
 					tot += 1
 				}
 			}
+		}
+	}
 
-			if lenJ = len(js2); lenJ == 0 { // Prove A at a leaf proof.
-				for leaf = range prfI.Leaves(prfI.DepthM()) {
-					tot += goalAssume(leaf, j1.Wff().SubL(), drv.Inf, drv.Mod)
+	if tot == 0 { // Push A for every A→B.
+		var (
+			lnG  *pr.Line
+			newG *fmla.Wff
+			prfG *pr.Prf
+		)
+
+		for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
+			for _, lnG = range keepLines(nil, prfO, mopIs(fmla.To)) {
+				newG = lnG.Wff().SubL()
+				for prfG = range prfO.Leaves(prfO.DepthM(), true) {
+					tot += goalAssume(prfG, newG, drv.Inf, drv.Mod)
 				}
 			}
 		}
@@ -231,64 +239,92 @@ var ndVeeI ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndVeeE ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfO, prfI, leaf *pr.Prf
-		js1, js2L, js2R  []*pr.Line
-		j1, j2           *pr.Line
-		lenJ             int
-		addW, newG       *fmla.Wff
-		pms              pr.PrfMutStatus
+		prfO, prfI1, prfI2, prfI *pr.Prf
+		js1, js2, js3            []*pr.Line
+		j1, j2, j3               *pr.Line
+		wff                      *fmla.Wff
+		pms                      pr.PrfMutStatus
 	)
 
-	// A∨B,A→C ⊢PPL C∨B; A∨B,B→C ⊢PPL A∨C; A∨A,A→C ⊢PPL C.
-	for prfO, prfI = range drv.Prf.WalkPrfPairs(pr.DistMIs(0)) {
-		js1 = keepLines(prfO, prfI, mopIs(fmla.Vee)) // A∨A or A∨B.
+	// A∨B,A→C,B→C ⊢PPL C.
+	for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
+		js1 = keepLines(prfO, prfI1, mopIs(fmla.Vee)) // A∨A or A∨B.
 
 		for _, j1 = range js1 {
-			js2L = keepLines(prfO, prfI, mopIs(fmla.To), subIs("L", j1.Wff().SubL())) // A→C.
+			for prfI1, prfI2 = range drv.Prf.WalkPrfPairs(pr.DistMIs(0), pr.SeesAll(prfO)) {
+				if prfI1.DistM(prfO)*prfO.DistM(prfI1) != 0 || prfI2.DistM(prfO)*prfO.DistM(prfI2) != 0 {
+					continue
+				}
 
-			if lenJ = len(js2L); 0 < lenJ {
-				for _, j2 = range js2L {
-					if j1.Wff().SubL().Is(j1.Wff().SubR()) { // A∨A,A→C.
-						addW = j2.Wff().SubR() // C.
-					} else { // A∨B,A→C.
-						addW = fmla.NewBinaryWff(fmla.Vee, j2.Wff().SubR(), j1.Wff().SubR()) // C∨B.
+				js2 = keepLines(prfI1, prfI2, mopIs(fmla.To), subIs("L", j1.Wff().SubL())) // A→C.
+				js2 = append(js2, keepLines(nil, prfO, mopIs(fmla.To), subIs("L", j1.Wff().SubL()))...)
+
+				for _, j2 = range js2 {
+					wff = fmla.NewBinaryWff(fmla.To, j1.Wff().SubR(), j2.Wff().SubR())
+
+					js3 = keepLines(prfI1, prfI2, wffIs(wff)) // B→C.
+					js3 = append(js3, keepLines(nil, prfO, wffIs(wff))...)
+
+					for _, j3 = range js3 {
+						prfI = pr.InnermostProof(prfO, prfI1, prfI2)
+
+						if _, pms = prfI.AddLine(j2.Wff().SubR(), pr.VeeE, j1, j2, j3); pms == pr.StatusOK { // ⊢PPL C.
+							tot += 1
+						}
 					}
+				}
 
-					if _, pms = prfI.AddLine(addW, pr.VeeE, j1, j2); pms == pr.StatusOK { // ⊢PPL C or ⊢PPL C∨B.
-						tot += 1
+				js3 = keepLines(prfO, prfI1, mopIs(fmla.To), subIs("L", j1.Wff().SubR())) // B→C.
+				js3 = append(js3, keepLines(nil, prfO, mopIs(fmla.To), subIs("L", j1.Wff().SubR()))...)
+
+				for _, j3 = range js3 {
+					wff = fmla.NewBinaryWff(fmla.To, j1.Wff().SubL(), j3.Wff().SubR())
+
+					js2 = keepLines(prfO, prfI1, wffIs(wff)) // A→C.
+
+					for _, j2 = range js2 {
+						prfI = pr.InnermostProof(prfO, prfI1, prfI2)
+
+						if _, pms = prfI.AddLine(j1.Wff().SubL(), pr.VeeE, j1, j2, j3); pms == pr.StatusOK { // ⊢PPL C.
+							tot += 1
+						}
 					}
 				}
 			}
+		}
+	}
 
-			js2R = keepLines(prfO, prfI, mopIs(fmla.To), subIs("L", j1.Wff().SubR())) // B→C.
+	if tot == 0 { // Push A→G, B→G for every A∨B and its G.
+		var (
+			lnG              *pr.Line
+			prfG             *pr.Prf
+			subL, subR, newG *fmla.Wff
+		)
 
-			for _, j2 = range js2R {
-				if j1.Wff().SubL().Is(j1.Wff().SubR()) { // A∨A,A→C.
-					addW = j2.Wff().SubR() // C.
-				} else { // A∨B,B→C.
-					addW = fmla.NewBinaryWff(fmla.Vee, j1.Wff().SubL(), j2.Wff().SubR()) // A∨C.
-				}
+		for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
+			for _, lnG = range keepLines(nil, prfO, mopIs(fmla.Vee)) {
+				subL, subR, _ = lnG.Wff().Subs()
 
-				if _, pms = prfI.AddLine(addW, pr.VeeE, j1, j2); pms == pr.StatusOK { // ⊢PPL C or ⊢PPL A∨C.
-					tot += 1
-				}
-			}
+				newG = fmla.NewBinaryWff(fmla.To, subL, prfO.WffG())
 
-			if lenJ = len(js2L) + len(js2R); lenJ == 0 {
-				if j1.Wff().SubL().Is(j1.Wff().SubR()) { // Prove A→A to the proof where A∨A is seen.
-					newG = fmla.NewBinaryWff(fmla.To, j1.Wff().SubL(), j1.Wff().SubL())
+				tot += goalAssume(prfO, newG, drv.Inf, drv.Mod)
 
-					tot += goalAssume(prfI, newG, drv.Inf, drv.Mod)
-				} else {
-					for leaf = range prfI.Leaves(prfI.DepthM()) { // Prove A→G or B→G at a leaf proof.
-						newG = fmla.NewBinaryWff(fmla.To, j1.Wff().SubL(), leaf.WffG())
+				newG = fmla.NewBinaryWff(fmla.To, subR, prfO.WffG())
 
-						tot += goalAssume(leaf, newG, drv.Inf, drv.Mod)
+				tot += goalAssume(prfO, newG, drv.Inf, drv.Mod)
 
-						newG = fmla.NewBinaryWff(fmla.To, j1.Wff().SubR(), leaf.WffG())
-
-						tot += goalAssume(leaf, newG, drv.Inf, drv.Mod)
+				for prfG = range prfO.Leaves(prfO.DepthM(), true) {
+					if prfG == prfO || !prfG.WffG().Is(prfO.WffG()) {
+						continue
 					}
+
+					newG = fmla.NewBinaryWff(fmla.To, subL, prfG.WffG())
+
+					tot += goalAssume(prfG, newG, drv.Inf, drv.Mod)
+
+					newG = fmla.NewBinaryWff(fmla.To, subR, prfG.WffG())
+
+					tot += goalAssume(prfG, newG, drv.Inf, drv.Mod)
 				}
 			}
 		}
@@ -363,36 +399,40 @@ var ndIffE ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndBotI ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfO, prfI, prfT, leaf *pr.Prf
-		trg                    *fmla.Wff
-		js1, js2               []*pr.Line
-		j1, j2                 *pr.Line
-		lenJ                   int
-		pms                    pr.PrfMutStatus
+		addW       *fmla.Wff
+		prfO, prfI *pr.Prf
+		js1, js2   []*pr.Line
+		j1, j2     *pr.Line
+		pms        pr.PrfMutStatus
 	)
+
+	addW = fmla.NewAtomicWff(fmla.Bot)
 
 	// A,¬A ⊢MPL ⊥.
 	for prfO, prfI = range drv.Prf.WalkPrfPairs(pr.DistMIs(0)) {
-		for prfT, trg = range drv.Prf.WalkTargets(pr.SeesAll(prfO, prfI)) {
-			if trg.Pred() != fmla.Bot || prfT.DistM(prfI)*prfI.DistM(prfT) != 0 {
-				continue
-			}
+		js2 = keepLines(prfO, prfI, mopIs(fmla.Neg)) // ¬A.
 
-			js2 = keepLines(prfO, prfI, mopIs(fmla.Neg)) // ¬A.
+		for _, j2 = range js2 {
+			js1 = keepLines(prfO, prfI, wffIs(j2.Wff().SubL())) // A.
 
-			for _, j2 = range js2 {
-				js1 = keepLines(prfO, prfI, wffIs(j2.Wff().SubL())) // A.
-
-				for _, j1 = range js1 {
-					if _, pms = prfI.AddLine(trg, pr.BotI, j1, j2); pms == pr.StatusOK { // ⊢MPL ⊥.
-						tot += 1
-					}
+			for _, j1 = range js1 {
+				if _, pms = prfI.AddLine(addW, pr.BotI, j1, j2); pms == pr.StatusOK { // ⊢MPL ⊥.
+					tot += 1
 				}
+			}
+		}
+	}
 
-				if lenJ = len(js1); lenJ == 0 { // Prove A at a leaf proof.
-					for leaf = range prfI.Leaves(prfI.DepthM()) {
-						tot += goalAssume(leaf, j2.Wff().SubL(), drv.Inf, drv.Mod)
-					}
+	if tot == 0 { // Push A for every ¬A.
+		var (
+			lnG  *pr.Line
+			prfG *pr.Prf
+		)
+
+		for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
+			for _, lnG = range keepLines(nil, prfO, mopIs(fmla.Neg)) {
+				for prfG = range prfO.Leaves(prfO.DepthM(), true) {
+					tot += goalAssume(prfG, lnG.Wff().SubL(), drv.Inf, drv.Mod)
 				}
 			}
 		}
@@ -557,20 +597,15 @@ var ndJan ndRuleFunc = func(drv *Drv) (tot int) {
 		pms  pr.PrfMutStatus
 	)
 
-	// A→¬B ⊢JPL ¬A∨¬B; A→¬B ⊢JPL ¬B∨¬A.
+	// ¬A→B ⊢JPL ¬¬A∨B.
 	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
-		js1 = keepLines(nil, prfI, mopIs(fmla.To), subMopIs("R", fmla.Neg)) // A→¬B.
+		js1 = keepLines(nil, prfI, mopIs(fmla.To), subMopIs("L", fmla.Neg)) // ¬A→B.
 
 		for _, j1 = range js1 {
-			addW = fmla.MustParseWffFromTemplate("¬%s∨¬%s", j1.Wff().SubL(), j1.Wff().Locate("RL")) // ¬A∨¬B.
+			addW = fmla.NewUnaryWff(fmla.Neg, j1.Wff().SubL())
+			addW = fmla.NewBinaryWff(fmla.Vee, addW, j1.Wff().SubR()) // ¬¬A∨B.
 
-			if _, pms = prfI.AddLine(addW, pr.Jan, j1); pms == pr.StatusOK { // ⊢JPL ¬A∨¬B.
-				tot += 1
-			}
-
-			addW = fmla.MustParseWffFromTemplate("¬%s∨¬%s", j1.Wff().Locate("RL"), j1.Wff().SubL()) // ¬B∨¬A.
-
-			if _, pms = prfI.AddLine(addW, pr.Jan, j1); pms == pr.StatusOK { // ⊢JPL ¬B∨¬A.
+			if _, pms = prfI.AddLine(addW, pr.Jan, j1); pms == pr.StatusOK { // ⊢JPL ¬¬A∨B.
 				tot += 1
 			}
 		}
@@ -588,19 +623,13 @@ var ndGöd ndRuleFunc = func(drv *Drv) (tot int) {
 		pms  pr.PrfMutStatus
 	)
 
-	// (A→B)→C ⊢GPL C∨(B→A); (A→B)→C ⊢GPL (B→A)∨C.
+	// (A→B)→C ⊢GPL (B→A)∨C.
 	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
 		js1 = keepLines(nil, prfI, mopIs(fmla.To), subMopIs("L", fmla.To)) // (A→B)→C.
 
 		for _, j1 = range js1 {
 			addW = fmla.NewBinaryWff(fmla.To, j1.Wff().Locate("LR"), j1.Wff().Locate("LL"))
-			addW = fmla.NewBinaryWff(fmla.Vee, j1.Wff().SubR(), addW) // C∨(B→A).
-
-			if _, pms = prfI.AddLine(addW, pr.Göd, j1); pms == pr.StatusOK { // ⊢GPL C∨(B→A).
-				tot += 1
-			}
-
-			addW = fmla.NewBinaryWff(fmla.Vee, addW.SubR(), addW.SubL()) // (B→A)∨C.
+			addW = fmla.NewBinaryWff(fmla.Vee, addW, j1.Wff().SubR())
 
 			if _, pms = prfI.AddLine(addW, pr.Göd, j1); pms == pr.StatusOK { // ⊢GPL (B→A)∨C.
 				tot += 1
@@ -620,20 +649,16 @@ var ndSme ndRuleFunc = func(drv *Drv) (tot int) {
 		pms  pr.PrfMutStatus
 	)
 
-	// (A→B)→A ⊢SPL A∨¬B; (A→B)→A ⊢SPL ¬B∨A.
+	// (A→B)→C ⊢SPL (A∨¬B)∨C.
 	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
-		js1 = keepLines(nil, prfI, mopIs(fmla.To), subMopIs("L", fmla.To), subsMmatch("LL", "R")) // (A→B)→A.
+		js1 = keepLines(nil, prfI, mopIs(fmla.To), subMopIs("L", fmla.To)) // (A→B)→C.
 
 		for _, j1 = range js1 {
-			addW = fmla.MustParseWffFromTemplate("%s∨¬%s", j1.Wff().SubR(), j1.Wff().Locate("LR")) // A∨¬B.
+			addW = fmla.NewUnaryWff(fmla.Neg, j1.Wff().Locate("LR"))
+			addW = fmla.NewBinaryWff(fmla.Vee, j1.Wff().Locate("LL"), addW)
+			addW = fmla.NewBinaryWff(fmla.Vee, addW, j1.Wff().SubR())
 
-			if _, pms = prfI.AddLine(addW, pr.Sme, j1); pms == pr.StatusOK { // ⊢SPL A∨¬B.
-				tot += 1
-			}
-
-			addW = fmla.NewBinaryWff(fmla.Vee, addW.SubR(), addW.SubL()) // ¬B∨A.
-
-			if _, pms = prfI.AddLine(addW, pr.Sme, j1); pms == pr.StatusOK { // ⊢SPL ¬B∨A.
+			if _, pms = prfI.AddLine(addW, pr.Sme, j1); pms == pr.StatusOK { // ⊢SPL (A∨¬B)∨C.
 				tot += 1
 			}
 		}
@@ -692,8 +717,27 @@ var ndForAllE ndRuleFunc = func(drv *Drv) (tot int) {
 					}
 				}
 
+				if pc == fmla.NoPred {
+					pc = prfI.FreshPC()
+
+					addW = j1.Wff().Instantiate(pc) // Φ(A/X).
+
+					if _, pms = prfI.AddLine(addW, pr.ForAllE, j1); pms == pr.StatusOK { // ⊢PPL Φ(A/X).
+						tot += 1
+					}
+				}
 			} else if av != fmla.NoArg { // ∀xΦ(x).
 				for _, ac = range prfI.UsedACs() {
+					addW = j1.Wff().Instantiate(ac) // Φ(a/x).
+
+					if _, pms = prfI.AddLine(addW, pr.ForAllE, j1); pms == pr.StatusOK { // ⊢PPL Φ(a/x).
+						tot += 1
+					}
+				}
+
+				if ac == fmla.NoArg {
+					ac = prfI.FreshAC()
+
 					addW = j1.Wff().Instantiate(ac) // Φ(a/x).
 
 					if _, pms = prfI.AddLine(addW, pr.ForAllE, j1); pms == pr.StatusOK { // ⊢PPL Φ(a/x).
@@ -774,49 +818,50 @@ var ndExistsI ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndExistsE ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfO, prfI, prfG *pr.Prf
-		j1, j2, ln       *pr.Line
-		pms              pr.PrfMutStatus
-		pv, pc           fmla.Predicate
-		av, ac           fmla.Argument
-		lns              []*pr.Line
-		wffA             *fmla.Wff
+		prfO, prfI *pr.Prf
+		j1, j2, j3 *pr.Line
+		pms        pr.PrfMutStatus
 	)
 
 	// ∃XΦ(X),[Φ(A/X)…Ψ(~A~)]∃E ⊢P2QL Ψ(~A~); ∃xΦ(x),[Φ(a/x)…Ψ(~a~)]∃E ⊢P1QL Ψ(~a~).
 	for prfO, prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(1), pr.PurpIs(pr.ExistsE)) {
-		if j1 = prfI.LineAtIndex(0); j1 == nil || j1.Rule() != pr.Ass { // [Φ(A/X)…Ψ(~A~)]∃E.
+		if j2 = prfI.LineAtIndex(0); j2 == nil || j2.Rule() != pr.Ass { // [Φ(A/X)…]∃E or [Φ(a/x)…]∃E.
 			continue
 		}
 
-		if j2 = prfI.LineWithWff(prfI.WffG()); j2 == nil { // [Φ(a/x)…Ψ(~a~)]∃E.
+		j1, _, _, _ = j2.Justs()
+
+		if j3 = prfI.LineWithWff(prfI.WffG()); j3 == nil { // […Ψ(~A~)]∃E or […Ψ(~a~)]∃E.
 			continue
 		}
 
-		if _, pms = prfO.AddLine(prfI.WffD(), pr.ExistsE, j1, j2); pms == pr.StatusOK { // ⊢PPL Ψ(~A~).
-			tot, _, _ = tot+1, prfI.Close(), prfI.Prune()
+		if _, pms = prfO.AddLine(prfI.WffD(), pr.ExistsE, j1, j2, j3); pms == pr.StatusOK { // ⊢P2QL Ψ(~A~).
+			tot += 1
 		}
 	}
 
-	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
-		lns = keepLines(nil, prfI, mopIs(fmla.Exists), nor(ruleIs(pr.ExistsI), ruleIs(pr.ExistsE))) // ∃XΦ(X) or ∃xΦ(x).
+	if tot == 0 { // Push [Φ(A/X)…]∃E or [Φ(a/x)…]∃E for every ∃XΦ(X) or ∃xΦ(x).
+		var (
+			lnG    *pr.Line
+			wffA   *fmla.Wff
+			pv, pc fmla.Predicate
+			av, ac fmla.Argument
+		)
 
-		for _, ln = range lns { // Push [Φ(A/X)…]∃E or [Φ(a/x)…]∃E to the proof where ∃XΦ(X) or ∃xΦ(x) is seen.
-			if pv, av, _ = ln.Wff().Var(); pv != fmla.NoPred { // ∃XΦ(X).
-				if pc = prfI.FreshPC(); pc != fmla.NoPred {
-					wffA = ln.Wff().Instantiate(pc)
+		for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
+			for _, lnG = range keepLines(nil, prfO, mopIs(fmla.Exists)) {
+				if pv, av, _ = lnG.Wff().Var(); pv != fmla.NoPred { // ∃XΦ(X).
+					pc = prfO.FreshPC()
 
-					if prfG, pms = prfI.AddPrf(wffA, prfI.WffG(), prfI.WffG(), pr.ExistsE, ln); pms == pr.StatusOK {
-						tot += 1 + goalAssume(prfG, prfI.WffG(), drv.Inf, drv.Mod)
-					}
+					wffA = lnG.Wff().Instantiate(pc) // Φ(A/X).
+				} else if av != fmla.NoArg { // ∃xΦ(x).
+					ac = prfO.FreshAC()
+
+					wffA = lnG.Wff().Instantiate(ac) // Φ(a/x).
 				}
-			} else if av != fmla.NoArg { // ∃xΦ(x).
-				if ac = prfI.FreshAC(); ac != fmla.NoArg {
-					wffA = ln.Wff().Instantiate(ac)
 
-					if prfG, pms = prfI.AddPrf(wffA, prfI.WffG(), prfI.WffG(), pr.ExistsE, ln); pms == pr.StatusOK {
-						tot += 1 + goalAssume(prfG, prfI.WffG(), drv.Inf, drv.Mod)
-					}
+				if prfI, pms = prfO.AddPrf(wffA, prfO.WffG(), prfO.WffG(), pr.ExistsE, lnG); pms == pr.StatusOK {
+					tot += 1
 				}
 			}
 		}
@@ -1031,13 +1076,12 @@ var ndDmdIntEn ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndBoxIntEs ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfO, prfI, prfT, prfG *pr.Prf
-		js1, js2               []*pr.Line
-		j1, j2                 *pr.Line
-		reqs2                  []func(*pr.Line) bool
-		lenJ                   int
-		addW, trg, newG        *fmla.Wff
-		pms                    pr.PrfMutStatus
+		prfO, prfI *pr.Prf
+		js1, js2   []*pr.Line
+		j1, j2     *pr.Line
+		reqs2      []func(*pr.Line) bool
+		addW       *fmla.Wff
+		pms        pr.PrfMutStatus
 	)
 
 	// If ⊢ A→¬B, □A,A→¬B ⊢MPL+Es ¬◇B.
@@ -1057,24 +1101,6 @@ var ndBoxIntEs ndRuleFunc = func(drv *Drv) (tot int) {
 					tot += 1
 				}
 			}
-
-			if lenJ = len(js2); lenJ == 0 { // Push [⊤…A→¬B]Thm for every ¬◇B target.
-				for prfT, trg = range drv.Prf.WalkTargets(pr.SeesAll(prfO, prfI)) {
-					if !strings.HasPrefix(trg.String(), "¬◇") || prfT.DistM(prfI)*prfI.DistM(prfT) != 0 {
-						continue
-					}
-
-					addW = fmla.NewAtomicWff(fmla.Top)
-
-					newG = fmla.MustParseWffFromTemplate("%s→¬%s", j1.Wff().SubL(), trg.Locate("LL")) // A→¬B.
-
-					prfT = pr.InnermostProof(prfT, prfO, prfI)
-
-					if prfG, pms = prfT.AddPrf(addW, newG, newG, pr.Thm); pms == pr.StatusOK {
-						tot += 1 + goalAssume(prfG, newG, drv.Inf, drv.Mod)
-					}
-				}
-			}
 		}
 	}
 
@@ -1083,13 +1109,12 @@ var ndBoxIntEs ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndDmdIntEs ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfO, prfI, prfT, prfG *pr.Prf
-		js1, js2               []*pr.Line
-		j1, j2                 *pr.Line
-		reqs2                  []func(*pr.Line) bool
-		lenJ                   int
-		addW, trg, newG        *fmla.Wff
-		pms                    pr.PrfMutStatus
+		prfO, prfI *pr.Prf
+		js1, js2   []*pr.Line
+		j1, j2     *pr.Line
+		reqs2      []func(*pr.Line) bool
+		addW       *fmla.Wff
+		pms        pr.PrfMutStatus
 	)
 
 	// If ⊢ A→¬B, ◇A,A→¬B ⊢MPL+Es ¬□B.
@@ -1107,24 +1132,6 @@ var ndDmdIntEs ndRuleFunc = func(drv *Drv) (tot int) {
 
 				if _, pms = prfI.AddLine(addW, pr.DmdIntEs, j1, j2); pms == pr.StatusOK { // ⊢MPL+Es ¬□B.
 					tot += 1
-				}
-			}
-
-			if lenJ = len(js2); lenJ == 0 { // Push [⊤…A→¬B]Thm for every ¬□B target.
-				for prfT, trg = range drv.Prf.WalkTargets(pr.SeesAll(prfO, prfI)) {
-					if !strings.HasPrefix(trg.String(), "¬□") || prfT.DistM(prfI)*prfI.DistM(prfT) != 0 {
-						continue
-					}
-
-					addW = fmla.NewAtomicWff(fmla.Top)
-
-					newG = fmla.MustParseWffFromTemplate("%s→¬%s", j1.Wff().SubL(), trg.Locate("LL")) // A→¬B.
-
-					prfT = pr.InnermostProof(prfT, prfO, prfI)
-
-					if prfG, pms = prfT.AddPrf(addW, newG, newG, pr.Thm); pms == pr.StatusOK {
-						tot += 1 + goalAssume(prfG, newG, drv.Inf, drv.Mod)
-					}
 				}
 			}
 		}
@@ -1210,41 +1217,50 @@ var ndDmdMon ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndBoxE ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfO, prfI, prfT, prfG *pr.Prf
-		j1, j2, ln             *pr.Line
-		pms                    pr.PrfMutStatus
-		lns                    []*pr.Line
-		trg                    *fmla.Wff
+		prfO, prfI *pr.Prf
+		j1, j2, j3 *pr.Line
+		pms        pr.PrfMutStatus
 	)
 
 	// □A,[A…B]□E ⊢PPL+M □B.
 	for prfO, prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(1), pr.PurpIs(pr.BoxE)) {
-		if j1 = prfI.LineAtIndex(0); j1 == nil || j1.Rule() != pr.Ass { // [A…]□E.
+		if j2 = prfI.LineAtIndex(0); j2 == nil || j2.Rule() != pr.Ass { // [A…]□E.
 			continue
 		}
 
-		if j2 = prfI.LineWithWff(prfI.WffG()); j2 == nil { // […B]□E.
+		j1, _, _, _ = j2.Justs()
+
+		if j3 = prfI.LineWithWff(prfI.WffG()); j3 == nil { // […B]□E.
 			continue
 		}
 
-		if _, pms = prfO.AddLine(prfI.WffD(), pr.BoxE, j1, j2); pms == pr.StatusOK { // ⊢PPL+M □B.
-			tot, _, _ = tot+1, prfI.Close(), prfI.Prune()
+		if _, pms = prfO.AddLine(prfI.WffD(), pr.BoxE, j1, j2, j3); pms == pr.StatusOK { // ⊢PPL+M □B.
+			tot += 1
 		}
 	}
 
-	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) { // Push [A…]□E for every □B target.
-		lns = keepLines(nil, prfI, mopIs(fmla.Box), nor(ruleIs(pr.BoxE), ruleIs(pr.BoxI))) // □A.
+	if tot == 0 { // Push [A…]□E for every □A and target □B.
+		var (
+			prfT *pr.Prf
+			lnG  *pr.Line
+			trg  *fmla.Wff
+			pms  pr.PrfMutStatus
+		)
 
-		for _, ln = range lns {
-			for prfT, trg = range drv.Prf.WalkTargets(pr.SeesAll(prfI)) {
-				if trg.Mop() != fmla.Box || prfI.DistM(prfT)*prfT.DistM(prfI) != 0 {
+		for prfT, trg = range drv.Prf.WalkTargets() {
+			if trg.Mop() != fmla.Box {
+				continue
+			}
+
+			for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0), pr.SeesAll(prfT)) {
+				if prfT.DistM(prfO)*prfO.DistM(prfT) != 0 {
 					continue
 				}
 
-				prfT = pr.InnermostProof(prfI, prfT)
-
-				if prfG, pms = prfT.AddPrf(ln.Wff().SubL(), trg.SubL(), trg, pr.BoxE, ln); pms == pr.StatusOK {
-					tot += 1 + goalAssume(prfG, trg.SubL(), drv.Inf, drv.Mod)
+				for _, lnG = range keepLines(nil, prfO, mopIs(fmla.Box)) {
+					if prfI, pms = prfO.AddPrf(lnG.Wff().SubL(), trg.SubL(), trg, pr.BoxE, lnG); pms == pr.StatusOK {
+						tot += 1
+					}
 				}
 			}
 		}
@@ -1255,41 +1271,50 @@ var ndBoxE ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndDmdE ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfO, prfI, prfT, prfG *pr.Prf
-		j1, j2, ln             *pr.Line
-		pms                    pr.PrfMutStatus
-		lns                    []*pr.Line
-		trg                    *fmla.Wff
+		prfO, prfI *pr.Prf
+		j1, j2, j3 *pr.Line
+		pms        pr.PrfMutStatus
 	)
 
 	// ◇A,[A…B]◇E ⊢PPL+M ◇B.
 	for prfO, prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(1), pr.PurpIs(pr.DmdE)) {
-		if j1 = prfI.LineAtIndex(0); j1 == nil || j1.Rule() != pr.Ass { // [A…]◇E.
+		if j2 = prfI.LineAtIndex(0); j2 == nil || j2.Rule() != pr.Ass { // [A…]◇E.
 			continue
 		}
 
-		if j2 = prfI.LineWithWff(prfI.WffG()); j2 == nil { // […B]◇E.
+		j1, _, _, _ = j2.Justs()
+
+		if j3 = prfI.LineWithWff(prfI.WffG()); j3 == nil { // […B]◇E.
 			continue
 		}
 
-		if _, pms = prfO.AddLine(prfI.WffD(), pr.DmdE, j1, j2); pms == pr.StatusOK { // ⊢PPL+M ◇B.
-			tot, _, _ = tot+1, prfI.Close(), prfI.Prune()
+		if _, pms = prfO.AddLine(prfI.WffD(), pr.DmdE, j1, j2, j3); pms == pr.StatusOK { // ⊢PPL+M ◇B.
+			tot += 1
 		}
 	}
 
-	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) { // Push [A…]◇E for every ◇B target.
-		lns = keepLines(nil, prfI, mopIs(fmla.Dmd), nor(ruleIs(pr.DmdE), ruleIs(pr.DmdI))) // ◇A.
+	if tot == 0 { // Push [A…]◇E for every ◇A and target ◇B.
+		var (
+			prfT *pr.Prf
+			lnG  *pr.Line
+			trg  *fmla.Wff
+			pms  pr.PrfMutStatus
+		)
 
-		for _, ln = range lns {
-			for prfT, trg = range drv.Prf.WalkTargets(pr.SeesAll(prfI)) {
-				if trg.Mop() != fmla.Dmd || prfI.DistM(prfT)*prfT.DistM(prfI) != 0 {
+		for prfT, trg = range drv.Prf.WalkTargets() {
+			if trg.Mop() != fmla.Dmd {
+				continue
+			}
+
+			for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0), pr.SeesAll(prfT)) {
+				if prfT.DistM(prfO)*prfO.DistM(prfT) != 0 {
 					continue
 				}
 
-				prfT = pr.InnermostProof(prfI, prfT)
-
-				if prfG, pms = prfT.AddPrf(ln.Wff().SubL(), trg.SubL(), trg, pr.DmdE, ln); pms == pr.StatusOK {
-					tot += 1 + goalAssume(prfG, prfI.WffG(), drv.Inf, drv.Mod)
+				for _, lnG = range keepLines(nil, prfO, mopIs(fmla.Dmd)) {
+					if prfI, pms = prfO.AddPrf(lnG.Wff().SubL(), trg.SubL(), trg, pr.DmdE, lnG); pms == pr.StatusOK {
+						tot += 1
+					}
 				}
 			}
 		}
@@ -1365,8 +1390,6 @@ var ndBoxAgg ndRuleFunc = func(drv *Drv) (tot int) {
 			} else if prfT.DistM(prfI)*prfI.DistM(prfT) != 0 {
 				continue
 			}
-
-			fmt.Printf("Seeking %q\n", trg.String())
 
 			js1 = keepLines(nil, prfI, mopIs(fmla.Box), subIs("L", trg.SubL().SubL())) // □A.
 
