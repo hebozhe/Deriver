@@ -77,21 +77,21 @@ In Fitch-style proofs:
 JPL grants that $\vdash_{JPL} \forall \Phi(\neg \Phi \vee \neg \neg \Phi)$.
 
 - $Jan$:
-  - $\neg A \to B \vdash_{JPL} \neg \neg A \vee B$
+  - $\neg A \to B, \neg \neg A \to B \vdash_{JPL} B$
 
 ### Gödel-Dummett Propositional Logic (GPL) Rules
 
 GPL grants that $\vdash_{GPL} \forall \Phi \forall \Psi((\Phi \to \Psi) \vee (\Psi \to \Phi))$.
 
 - $Göd$:
-  - $(A \to B) \to C \vdash_{GPL} (B \to A) \vee C$
+  - $(A \to B) \to C,(B \to A) \to C \vdash_{GPL} C$
 
 ### Smetanich Propositional Logic (SPL) Rules
 
 SPL grants that $\vdash_{SPL} \forall \Phi \forall \Psi((\Phi \to \Psi) \vee (\Phi \vee \neg \Psi))$.
 
 - $Sme$:
-  - $(A \to B) \to C \vdash_{SPL} (A \vee \neg B) \vee C$
+  - $A \to C, \neg B \to C, (A \to B) \to C \vdash_{SPL} C$
 
 ### Classical Propositional Logic (CPL) Rules
 

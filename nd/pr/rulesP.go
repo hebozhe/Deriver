@@ -30,11 +30,11 @@ const (
 	// Intuitionistic Propositional Logic (IPL)
 	BotE // ⊥ ⊢IPL A
 	// Jankov Propositional Logic (JPL)
-	Jan // ¬A→B ⊢JPL ¬¬A∨B
+	Jan // ¬A→B,¬¬A→B ⊢JPL B
 	// Gödel-Dummett Propositional Logic (GPL)
-	Göd // (A→B)→C ⊢GPL (B→A)∨C
+	Göd // (A→B)→C,(B→A)→C ⊢GPL C
 	// Smetanich Propositional Logic (SPL)
-	Sme // (A→B)→C ⊢SPL (A∨¬B)∨C
+	Sme // A→C,¬B→C,(A→B)→C ⊢SPL C
 	// Classical Propositional Logic (CPL)
 	NegE // ¬¬A ⊢CPL A
 	// Implicational N-Order Logic with Identity (TNLi)
@@ -132,9 +132,9 @@ var rulePCount map[NDRule]int = map[NDRule]int{
 	BotI:     2,
 	NegI:     2,
 	BotE:     1,
-	Jan:      1,
-	Göd:      1,
-	Sme:      1,
+	Jan:      2,
+	Göd:      2,
+	Sme:      3,
 	NegE:     1,
 	EqualI:   0,
 	EqualE:   2,

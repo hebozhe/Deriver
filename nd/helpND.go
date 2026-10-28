@@ -100,9 +100,9 @@ func wffHas[WP fmla.WffPart](part WP) (keep func(ln *pr.Line) (ok bool)) {
 	return
 }
 
-func wffStringIs(str string) (keep func(ln *pr.Line) (ok bool)) {
+func strIs(s string) (keep func(ln *pr.Line) (ok bool)) {
 	keep = func(ln *pr.Line) (ok bool) {
-		ok = ln.Wff().String() == str
+		ok = ln.Wff().String() == s
 
 		return
 	}

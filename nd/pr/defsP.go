@@ -552,6 +552,14 @@ func (prf *Prf) HasLine(ln *Line) (has bool) {
 	return
 }
 
+func (prf *Prf) HasWff(wff *fmla.Wff) (has bool) {
+	if has = prf.LineWithWff(wff) != nil; !has {
+		has = prf.prfO != nil && prf.prfO.depthM == prf.depthM && prf.prfO.HasWff(wff)
+	}
+
+	return
+}
+
 func InnermostProof(prfs ...*Prf) (prf *Prf) {
 	var (
 		lenP       int

@@ -93,8 +93,11 @@ var ndToE ndRuleFunc = func(drv *Drv) (tot int) {
 		for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
 			for _, lnG = range keepLines(nil, prfO, mopIs(fmla.To)) {
 				newG = lnG.Wff().SubL()
+
+				tot += goalAssume(prfO, newG, min(drv.Inf, pr.Intuitionistic), drv.Mod)
+
 				for prfG = range prfO.Leaves(prfO.DepthM(), true) {
-					tot += goalAssume(prfG, newG, drv.Inf, drv.Mod)
+					tot += goalAssume(prfG, newG, min(drv.Inf, pr.Intuitionistic), drv.Mod)
 				}
 			}
 		}
@@ -268,7 +271,7 @@ var ndVeeE ndRuleFunc = func(drv *Drv) (tot int) {
 					for _, j3 = range js3 {
 						prfI = pr.InnermostProof(prfO, prfI1, prfI2)
 
-						if _, pms = prfI.AddLine(j2.Wff().SubR(), pr.VeeE, j1, j2, j3); pms == pr.StatusOK { // ⊢PPL C.
+						if _, pms = prfI.AddLine(j3.Wff().SubR(), pr.VeeE, j1, j2, j3); pms == pr.StatusOK { // ⊢PPL C.
 							tot += 1
 						}
 					}
@@ -285,7 +288,7 @@ var ndVeeE ndRuleFunc = func(drv *Drv) (tot int) {
 					for _, j2 = range js2 {
 						prfI = pr.InnermostProof(prfO, prfI1, prfI2)
 
-						if _, pms = prfI.AddLine(j1.Wff().SubL(), pr.VeeE, j1, j2, j3); pms == pr.StatusOK { // ⊢PPL C.
+						if _, pms = prfI.AddLine(j2.Wff().SubR(), pr.VeeE, j1, j2, j3); pms == pr.StatusOK { // ⊢PPL C.
 							tot += 1
 						}
 					}
@@ -307,11 +310,11 @@ var ndVeeE ndRuleFunc = func(drv *Drv) (tot int) {
 
 				newG = fmla.NewBinaryWff(fmla.To, subL, prfO.WffG())
 
-				tot += goalAssume(prfO, newG, drv.Inf, drv.Mod)
+				tot += goalAssume(prfO, newG, min(drv.Inf, pr.Intuitionistic), drv.Mod)
 
 				newG = fmla.NewBinaryWff(fmla.To, subR, prfO.WffG())
 
-				tot += goalAssume(prfO, newG, drv.Inf, drv.Mod)
+				tot += goalAssume(prfO, newG, min(drv.Inf, pr.Intuitionistic), drv.Mod)
 
 				for prfG = range prfO.Leaves(prfO.DepthM(), true) {
 					if prfG == prfO || !prfG.WffG().Is(prfO.WffG()) {
@@ -320,11 +323,11 @@ var ndVeeE ndRuleFunc = func(drv *Drv) (tot int) {
 
 					newG = fmla.NewBinaryWff(fmla.To, subL, prfG.WffG())
 
-					tot += goalAssume(prfG, newG, drv.Inf, drv.Mod)
+					tot += goalAssume(prfG, newG, min(drv.Inf, pr.Intuitionistic), drv.Mod)
 
 					newG = fmla.NewBinaryWff(fmla.To, subR, prfG.WffG())
 
-					tot += goalAssume(prfG, newG, drv.Inf, drv.Mod)
+					tot += goalAssume(prfG, newG, min(drv.Inf, pr.Intuitionistic), drv.Mod)
 				}
 			}
 		}
@@ -432,7 +435,7 @@ var ndBotI ndRuleFunc = func(drv *Drv) (tot int) {
 		for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
 			for _, lnG = range keepLines(nil, prfO, mopIs(fmla.Neg)) {
 				for prfG = range prfO.Leaves(prfO.DepthM(), true) {
-					tot += goalAssume(prfG, lnG.Wff().SubL(), drv.Inf, drv.Mod)
+					tot += goalAssume(prfG, lnG.Wff().SubL(), min(drv.Inf, pr.Intuitionistic), drv.Mod)
 				}
 			}
 		}
@@ -590,23 +593,23 @@ var ndEqualE ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndJan ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfI *pr.Prf
-		js1  []*pr.Line
-		j1   *pr.Line
-		addW *fmla.Wff
-		pms  pr.PrfMutStatus
+		prfO, prfI *pr.Prf
+		js1, js2   []*pr.Line
+		j1, j2     *pr.Line
+		pms        pr.PrfMutStatus
 	)
 
-	// ¬A→B ⊢JPL ¬¬A∨B.
-	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
-		js1 = keepLines(nil, prfI, mopIs(fmla.To), subMopIs("L", fmla.Neg)) // ¬A→B.
+	// ¬A→B,¬¬A→B ⊢JPL B.
+	for prfO, prfI = range drv.Prf.WalkPrfPairs(pr.DistMIs(0)) {
+		js2 = keepLines(prfO, prfI, mopIs(fmla.To), subMopIs("L", fmla.Neg), subMopIs("LL", fmla.Neg)) // ¬¬A→B.
 
-		for _, j1 = range js1 {
-			addW = fmla.NewUnaryWff(fmla.Neg, j1.Wff().SubL())
-			addW = fmla.NewBinaryWff(fmla.Vee, addW, j1.Wff().SubR()) // ¬¬A∨B.
+		for _, j2 = range js2 {
+			js1 = keepLines(prfO, prfI, strIs(string([]rune(j2.Wff().String())[1:]))) // ¬A→B.
 
-			if _, pms = prfI.AddLine(addW, pr.Jan, j1); pms == pr.StatusOK { // ⊢JPL ¬¬A∨B.
-				tot += 1
+			for _, j1 = range js1 {
+				if _, pms = prfI.AddLine(j2.Wff().SubR(), pr.Jan, j1, j2); pms == pr.StatusOK { // ⊢JPL B.
+					tot += 1
+				}
 			}
 		}
 	}
@@ -616,23 +619,27 @@ var ndJan ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndGöd ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfI *pr.Prf
-		js1  []*pr.Line
-		j1   *pr.Line
-		addW *fmla.Wff
-		pms  pr.PrfMutStatus
+		prfO, prfI *pr.Prf
+		js1, js2   []*pr.Line
+		j1, j2     *pr.Line
+		wff        *fmla.Wff
+		pms        pr.PrfMutStatus
 	)
 
-	// (A→B)→C ⊢GPL (B→A)∨C.
+	// (A→B)→C,(B→A)→C ⊢GPL C.
 	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
-		js1 = keepLines(nil, prfI, mopIs(fmla.To), subMopIs("L", fmla.To)) // (A→B)→C.
+		js1 = keepLines(prfO, prfI, mopIs(fmla.To), subMopIs("L", fmla.To)) // (A→B)→C.
 
 		for _, j1 = range js1 {
-			addW = fmla.NewBinaryWff(fmla.To, j1.Wff().Locate("LR"), j1.Wff().Locate("LL"))
-			addW = fmla.NewBinaryWff(fmla.Vee, addW, j1.Wff().SubR())
+			wff = fmla.NewBinaryWff(fmla.To, j1.Wff().Locate("LR"), j1.Wff().Locate("LL"))
+			wff = fmla.NewBinaryWff(fmla.To, wff, j1.Wff().SubR())
 
-			if _, pms = prfI.AddLine(addW, pr.Göd, j1); pms == pr.StatusOK { // ⊢GPL (B→A)∨C.
-				tot += 1
+			js2 = keepLines(prfO, prfI, wffIs(wff)) // (B→A)→C.
+
+			for _, j2 = range js2 {
+				if _, pms = prfI.AddLine(j2.Wff().SubR(), pr.Göd, j1, j2); pms == pr.StatusOK { // ⊢GPL C.
+					tot += 1
+				}
 			}
 		}
 	}
@@ -642,24 +649,43 @@ var ndGöd ndRuleFunc = func(drv *Drv) (tot int) {
 
 var ndSme ndRuleFunc = func(drv *Drv) (tot int) {
 	var (
-		prfI *pr.Prf
-		js1  []*pr.Line
-		j1   *pr.Line
-		addW *fmla.Wff
-		pms  pr.PrfMutStatus
+		prfO, prfI1, prfI2, prfI *pr.Prf
+		js1, js2, js3            []*pr.Line
+		j1, j2, j3               *pr.Line
+		wff                      *fmla.Wff
+		pms                      pr.PrfMutStatus
 	)
 
-	// (A→B)→C ⊢SPL (A∨¬B)∨C.
-	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
-		js1 = keepLines(nil, prfI, mopIs(fmla.To), subMopIs("L", fmla.To)) // (A→B)→C.
+	// A→C,¬B→C,(A→B)→C ⊢SPL C.
+	for prfO = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
+		js1 = keepLines(nil, prfO, mopIs(fmla.To)) // A→C.
 
 		for _, j1 = range js1 {
-			addW = fmla.NewUnaryWff(fmla.Neg, j1.Wff().Locate("LR"))
-			addW = fmla.NewBinaryWff(fmla.Vee, j1.Wff().Locate("LL"), addW)
-			addW = fmla.NewBinaryWff(fmla.Vee, addW, j1.Wff().SubR())
+			for prfI1, prfI2 = range drv.Prf.WalkPrfPairs(pr.DistMIs(0), pr.SeesAll(prfO)) {
+				if prfI1.DistM(prfO)*prfO.DistM(prfI1) != 0 || prfI2.DistM(prfO)*prfO.DistM(prfI2) != 0 {
+					continue
+				}
 
-			if _, pms = prfI.AddLine(addW, pr.Sme, j1); pms == pr.StatusOK { // ⊢SPL (A∨¬B)∨C.
-				tot += 1
+				wff = j1.Wff().SubR()
+
+				js2 = keepLines(prfI1, prfI2, mopIs(fmla.To), subMopIs("L", fmla.Neg), subIs("R", wff)) // ¬B→C.
+				js2 = append(js2, keepLines(nil, prfO, mopIs(fmla.To), subMopIs("L", fmla.Neg), subIs("R", wff))...)
+
+				for _, j2 = range js2 {
+					wff = fmla.NewBinaryWff(fmla.To, j1.Wff().SubL(), j2.Wff().Locate("LL"))
+					wff = fmla.NewBinaryWff(fmla.To, wff, j2.Wff().SubR())
+
+					js3 = keepLines(prfI1, prfI2, wffIs(wff)) // (A→B)→C.
+					js3 = append(js3, keepLines(nil, prfO, wffIs(wff))...)
+
+					for _, j3 = range js3 {
+						prfI = pr.InnermostProof(prfO, prfI1, prfI2)
+
+						if _, pms = prfI.AddLine(j3.Wff().SubR(), pr.Sme, j1, j2, j3); pms == pr.StatusOK { // ⊢SPL C.
+							tot += 1
+						}
+					}
+				}
 			}
 		}
 	}
@@ -949,7 +975,7 @@ var ndBoxIntEw ndRuleFunc = func(drv *Drv) (tot int) {
 
 	// □⊤ ⊢MPL+Ew ¬◇⊥; □⊥ ⊢MPL+Ew ¬◇⊤.
 	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
-		js1 = keepLines(nil, prfI, wffStringIs("□⊤")) // □⊤.
+		js1 = keepLines(nil, prfI, strIs("□⊤")) // □⊤.
 
 		addW = fmla.MustParseWff("¬◇⊥") // ¬◇⊥.
 
@@ -959,7 +985,7 @@ var ndBoxIntEw ndRuleFunc = func(drv *Drv) (tot int) {
 			}
 		}
 
-		js1 = keepLines(nil, prfI, wffStringIs("□⊥")) // □⊥.
+		js1 = keepLines(nil, prfI, strIs("□⊥")) // □⊥.
 
 		addW = fmla.MustParseWff("¬◇⊤") // ¬◇⊤.
 
@@ -984,7 +1010,7 @@ var ndDmdIntEw ndRuleFunc = func(drv *Drv) (tot int) {
 
 	// ◇⊤ ⊢MPL+Ew ¬□⊥; ◇⊥ ⊢MPL+Ew ¬□⊤.
 	for prfI = range drv.Prf.WalkPrfPairs(pr.DistPIs(0)) {
-		js1 = keepLines(nil, prfI, wffStringIs("◇⊤")) // ◇⊤.
+		js1 = keepLines(nil, prfI, strIs("◇⊤")) // ◇⊤.
 
 		addW = fmla.MustParseWff("¬□⊥") // ¬□⊥.
 
@@ -994,7 +1020,7 @@ var ndDmdIntEw ndRuleFunc = func(drv *Drv) (tot int) {
 			}
 		}
 
-		js1 = keepLines(nil, prfI, wffStringIs("◇⊥")) // ◇⊥.
+		js1 = keepLines(nil, prfI, strIs("◇⊥")) // ◇⊥.
 
 		addW = fmla.MustParseWff("¬□⊤") // ¬□⊤.
 
