@@ -62,7 +62,7 @@ func (drv *Drv) ApplyRules() (tot int) {
 			break
 		}
 
-		tot += ndRF(drv)
+		tot += ndRF(drv.Prf)
 	}
 
 	return
@@ -76,12 +76,14 @@ func (drv *Drv) DeriveAtStrength() (met bool) {
 
 	drvG = drv.Prf.WffG()
 
-	tot = 1 + goalAssume(drv.Prf, drvG, drv.Inf, drv.Mod)
+	tot = 1 + goalAssume(drv.Prf, drvG, drv.Inf, drv.Mod) + drv.ApplyRules()
 
 	for 0 < tot && !drv.Met {
 		tot = drv.ApplyRules()
 
-		drv.Met = drv.Prf.LineWithWff(drvG) != nil
+		if drv.Met = drv.Prf.LineWithWff(drvG) != nil; !drv.Met && tot == 0 {
+			tot = lineAssume(drv.Prf, drv.Inf, drv.Mod)
+		}
 	}
 
 	met = drv.Met

@@ -71,7 +71,6 @@ type Wff struct {
 
 	subL *Wff // If kind is Unary, this is the sole operand; if Kind is Binary, this is the left operand.
 	subR *Wff // If kind is Binary, this is the right operand.
-	sup  *Wff // If this wff is a child, this is its parent.
 
 	hash WffHash // The hash value of the WffTree.
 }
@@ -87,20 +86,15 @@ func (wff *Wff) DeepCopy() (wffC *Wff) {
 			args: wff.args,
 			// subL: wff.subL, // The children are set below.
 			// subR: wff.subR, // The children are set below.
-			// sup:  nil, // The parent is set below.
 			hash: wff.hash,
 		}
 
 		if wff.subL != nil {
 			wffC.subL = wff.subL.DeepCopy()
-
-			wffC.subL.sup = wffC
 		}
 
 		if wff.subR != nil {
 			wffC.subR = wff.subR.DeepCopy()
-
-			wffC.subR.sup = wffC
 		}
 	}
 

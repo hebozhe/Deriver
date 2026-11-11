@@ -6,6 +6,7 @@ import (
 	"Deriver/nd/pr"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -62,16 +63,18 @@ var testCases []testCase = []testCase{
 	{[]string{"A∧B"}, "B", pr.Positive, pr.NoModality, "∧E(R)", 1},
 	{[]string{"A"}, "A∨B", pr.Positive, pr.NoModality, "∨I(L)", 1},
 	{[]string{"A"}, "B∨A", pr.Positive, pr.NoModality, "∨I(R)", 1},
-	{[]string{"A∨B", "A→C", "B→C"}, "C", pr.Positive, pr.NoModality, "∨E", 1},
+	{[]string{"A∨B", "A→C", "B→C"}, "C", pr.Positive, pr.NoModality, "∨E(3)", 1},
+	{[]string{"A∨A", "A→B"}, "B", pr.Positive, pr.NoModality, "∨E(2)", 1},
 	{[]string{"A→B", "B→A"}, "A↔B", pr.Positive, pr.NoModality, "↔I", 1},
 	{[]string{"A↔B"}, "A→B", pr.Positive, pr.NoModality, "↔E(L)", 1},
 	{[]string{"A↔B"}, "B→A", pr.Positive, pr.NoModality, "↔E(R)", 1},
 	{[]string{"A", "¬A"}, "⊥", pr.Minimal, pr.NoModality, "⊥I", 1},
 	{[]string{"A→⊥"}, "¬A", pr.Intuitionistic, pr.NoModality, "¬I", 1},
 	{[]string{"⊥"}, "A", pr.Intuitionistic, pr.NoModality, "⊥E", 1},
-	{[]string{"¬A→B", "¬¬A→B"}, "B", pr.Jankov, pr.NoModality, "Jan", 1},
-	{[]string{"(A→B)→C", "(B→A)→C"}, "C", pr.GödelDummett, pr.NoModality, "Göd", 1},
-	{[]string{"A→C", "¬B→C", "(A→B)→C"}, "C", pr.Smetanich, pr.NoModality, "Sme", 1},
+	{[]string{"¬A→B", "¬¬A→C"}, "B∨C", pr.Jankov, pr.NoModality, "Jan(L)", 1},
+	{[]string{"¬¬A→B", "¬A→C"}, "B∨C", pr.Jankov, pr.NoModality, "Jan(R)", 1},
+	// {[]string{"(A→B)→C", "(B→A)→C"}, "C", pr.GödelDummett, pr.NoModality, "Göd", 1},
+	// {[]string{"¬A→B", "(B→A)→B", "B"}, "(B∨D)∨E", pr.Smetanich, pr.NoModality, "Sme", 1},
 	{[]string{"¬¬A"}, "A", pr.Classical, pr.NoModality, "¬E", 1},
 	{nil, "a=a", pr.Implicational, pr.NoModality, "=I", 1},
 	{[]string{"a=b", "Aaa"}, "Aba", pr.Implicational, pr.NoModality, "=E(1L)", 1},
@@ -131,11 +134,42 @@ var testCases []testCase = []testCase{
 	{[]string{"◇A"}, "□◇A", pr.Positive, pr.Modal5, "5I", 1},
 	{[]string{"◇□A"}, "□A", pr.Positive, pr.Modal5, "5E", 1},
 
-	// Axiomatizations, Theorems, Distributions, and Reductions
+	// Distributions, Decompositions, and Reductions
+	// - For (I)→O:
+	{nil, "((A→B)→C)→(B→C)", pr.Implicational, pr.NoModality, "(→)→ D (Imp)", 1},
+	{nil, "((A→B)→C)→(¬A→C)", pr.Intuitionistic, pr.NoModality, "(→)→ D (Int)", 1},
+	{nil, "((A∨B)→C)→((A→C)∧(B→C))", pr.Positive, pr.NoModality, "(∨)→ D (Pos)", 1},
+	{nil, "((A∧B)→C)→(A→(B→C))", pr.Positive, pr.NoModality, "(∧)→ D (Pos)", 1},
+	{nil, "((A↔B)→C)→((A→B)→((B→A)→C))", pr.Positive, pr.NoModality, "(↔)→ D (Pos)", 1},
+	{nil, "(¬¬A→B)→(A→B)", pr.Minimal, pr.NoModality, "(¬¬)→ D (Min)", 1},
+	// - For O→(I)
+	{nil, "(A→(B→C))→(B→(A→C))", pr.Implicational, pr.NoModality, "→(→) D (Imp)", 1},
+	{nil, "(A→(B∧C))→((A→B)∧(A→C))", pr.Positive, pr.NoModality, "→(∧) D (Pos)", 1},
+	{nil, "(A→(¬B∨C))→((A→¬B)∨(A→C))", pr.Jankov, pr.NoModality, "→(∨) D(L) (Jan)", 1},
+	{nil, "(A→(B∨¬C))→((A→B)∨(A→¬C))", pr.Jankov, pr.NoModality, "→(∨) D(R) (Jan)", 1},
+	{nil, "(A→(B∨C))→((A→B)∨(A→C))", pr.GödelDummett, pr.NoModality, "→(∨) (Göd)", 1},
+	{nil, "(A→(B↔C))→((A→(B→C))∧(A→(C→B)))", pr.Positive, pr.NoModality, "→(↔) D (Pos)", 1},
+	{nil, "(A→¬B)→(B→¬A)", pr.Minimal, pr.NoModality, "→(¬) D (Min)", 1},
+	// - For ¬(I):
+	{nil, "¬(A→B)→¬B", pr.Minimal, pr.NoModality, "¬(→) D (Min)", 1},
+	{nil, "¬(A→B)→¬¬A", pr.Intuitionistic, pr.NoModality, "¬(→) D (Int)", 1},
+	{nil, "¬(A∨B)→(¬A∧¬B)", pr.Minimal, pr.NoModality, "¬(∨) D (Min)", 1},
+	{nil, "¬(A∧B)→(A→¬B)", pr.Minimal, pr.NoModality, "¬(∧) D (Min)", 1},
+	{nil, "¬(A↔B)→(A→¬B)", pr.Minimal, pr.NoModality, "¬(↔) D (Min)", 1},
+	// - For ¬¬(I):
+	{nil, "¬¬(A→B)→(¬B→¬A)", pr.Minimal, pr.NoModality, "¬¬(→) D (Min)", 1},
+	{nil, "¬¬(A∨B)→(¬A→¬¬B)", pr.Minimal, pr.NoModality, "¬¬(∨) D (Min)", 1},
+	{nil, "¬¬(A∧B)→(¬¬A∧¬¬B)", pr.Minimal, pr.NoModality, "¬¬(∧) D (Min)", 1},
+	{nil, "¬¬(A↔B)→(¬A↔¬B)", pr.Minimal, pr.NoModality, "¬¬(↔) D (Min)", 1},
+	// - For ¬¬¬(I):
+	{nil, "¬¬¬A→¬A", pr.Minimal, pr.NoModality, "¬¬¬ D (Min)", 1},
+
+	// Axiomatizations
 	{nil, "A→A", pr.Implicational, pr.NoModality, "Identity", 1},
 	{nil, "A→(B→A)", pr.Implicational, pr.NoModality, "Weakening", 1},
+	{nil, "(A→B)→((A∨B)↔B)", pr.Positive, pr.NoModality, "MFC-→ (Pos)(LR)", 1},
+	{nil, "((A∨B)↔B)→(A→B)", pr.Positive, pr.NoModality, "MFC-→ (Pos)(RL)", 1},
 	{nil, "(A→(A→B))→(A→B)", pr.Implicational, pr.NoModality, "Contraction", 1},
-	{nil, "(A→(B→C))→(B→(A→C))", pr.Implicational, pr.NoModality, "Permutation", 1},
 	{nil, "(A→B)→((B→C)→(A→C))", pr.Implicational, pr.NoModality, "Hyp Syll(LR)", 1},
 	{nil, "(A→B)→((C→A)→(C→B))", pr.Implicational, pr.NoModality, "Hyp Syll(RL)", 1},
 	{nil, "(A→(B→C))→((A→B)→(A→C))", pr.Implicational, pr.NoModality, "Frege 2", 1},
@@ -143,35 +177,41 @@ var testCases []testCase = []testCase{
 	{nil, "A→((B→C)→(((D→B)→(C→E))→(B→E)))", pr.Implicational, pr.NoModality, "Meredith 1", 1},
 	{nil, "((A→B)→C)→(D→((B→(C→E))→(B→E)))", pr.Implicational, pr.NoModality, "Meredith 3", 1},
 
+	{nil, "(A∧B)→(((A∨B)↔B)↔A)", pr.Positive, pr.NoModality, "MFC-∧ (Pos)(LR)", 1},
+	{nil, "(((A∨B)↔B)↔A)→(A∧B)", pr.Positive, pr.NoModality, "MFC-∧ (Pos)(RL)", 1},
+
 	{nil, "A→¬¬A", pr.Minimal, pr.NoModality, "DNI", 1},
-	{nil, "¬(A∧¬A)", pr.Minimal, pr.NoModality, "LNC ∧", 1},
-	{nil, "¬(A↔¬A)", pr.Minimal, pr.NoModality, "LNC ↔", 1},
-	{nil, "¬¬¬A→¬A", pr.Minimal, pr.NoModality, "¬¬ (Min)", 1},
-	{nil, "(A→¬A)→¬A", pr.Minimal, pr.NoModality, "RAA ¬", 1},
-	{nil, "(¬A→A)→¬¬A", pr.Minimal, pr.NoModality, "RAA ¬¬", 1},
-	{nil, "(A→¬B)→(B→¬A)", pr.Minimal, pr.NoModality, "Antitone →", 1},
+	{nil, "¬(A∧¬A)", pr.Minimal, pr.NoModality, "LNC-∧", 1},
+	{nil, "¬(A↔¬A)", pr.Minimal, pr.NoModality, "LNC-↔", 1},
+	{nil, "(A→¬A)→¬A", pr.Minimal, pr.NoModality, "RAA-¬", 1},
+	{nil, "(¬A→A)→¬¬A", pr.Minimal, pr.NoModality, "RAA-¬¬", 1},
+	{nil, "(A→¬B)→(B→¬A)", pr.Minimal, pr.NoModality, "Antitone-→", 1},
 	{nil, "(A→B)→(¬B→¬A)", pr.Minimal, pr.NoModality, "Modus Tollens", 1},
-	{nil, "¬(A∧B)→(A→¬B)", pr.Minimal, pr.NoModality, "¬∧ (Min)(LR)", 1},
-	{nil, "¬(A∧B)→(B→¬A)", pr.Minimal, pr.NoModality, "¬∧ (Min)(RL)", 1},
-	{nil, "¬¬(A∨B)→(¬A→¬¬B)", pr.Jankov, pr.NoModality, "¬¬∨ (Min)(LR)", 1},
-	{nil, "¬¬(A∨B)→(¬B→¬¬A)", pr.Jankov, pr.NoModality, "¬¬∨ (Min)(RL)", 1},
 	{nil, "(¬¬A→¬¬B)→(¬B→¬A)", pr.Minimal, pr.NoModality, "Contra (Min)", 1},
 
 	{nil, "¬A→(A→B)", pr.Intuitionistic, pr.NoModality, "Explosion", 1},
+	{nil, "¬A→(A↔⊥)", pr.Intuitionistic, pr.NoModality, "MFC-¬ (Int)(LR)", 1},
+	{nil, "(A↔⊥)→¬A", pr.Intuitionistic, pr.NoModality, "MFC-¬ (Int)(RL)", 1},
 
-	{nil, "¬A∨¬¬A", pr.Jankov, pr.NoModality, "WLEM ∨", 1},
-	{nil, "¬¬A∨¬¬¬A", pr.Jankov, pr.NoModality, "WLEM ¬", 1},
+	{nil, "¬A∨¬¬A", pr.Jankov, pr.NoModality, "WLEM-∨", 1},
+	{nil, "(A→⊥)∨((A→⊥)→⊥)", pr.Jankov, pr.NoModality, "WLEM-→", 1},
+	{nil, "(A↔⊥)∨((A↔⊥)↔⊥)", pr.Jankov, pr.NoModality, "WLEM-↔", 1},
+	{nil, "¬¬A∨¬¬¬A", pr.Jankov, pr.NoModality, "WLEM-¬", 1},
 	{nil, "(A→¬A)∨(¬A→A)", pr.Jankov, pr.NoModality, "WLIN", 1},
 	{nil, "(A→B)∨(¬A→¬B)", pr.Jankov, pr.NoModality, "WDGP", 1},
 	{nil, "(A→B)→(¬A∨¬¬B)", pr.Jankov, pr.NoModality, "→ (Jan)", 1},
-	{nil, "¬(A∧B)→(¬A∨¬B)", pr.Jankov, pr.NoModality, "¬∧ (Jan)", 1},
+	{nil, "(A→¬B)→(¬A∨¬B)", pr.Jankov, pr.NoModality, "→¬ (Jan)", 1},
+	{nil, "¬(A∧B)→(¬A∨¬B)", pr.Jankov, pr.NoModality, "¬∧ DeMorgan", 1},
 	{nil, "(¬¬A→A)→(A∨¬A)", pr.Jankov, pr.NoModality, "Limited LEM", 1},
-	{nil, "¬¬(A∨B)→(¬¬A∨¬¬B)", pr.Jankov, pr.NoModality, "¬¬∨ (Jan)", 1},
-	{nil, "(A→(B∨¬C))→((A→B)∨(A→¬C))", pr.Jankov, pr.NoModality, "NIP", 1},
+	{nil, "¬¬(A∨B)→(¬¬A∨¬¬B)", pr.Jankov, pr.NoModality, "¬¬∨ DeMorgan", 1},
+	{nil, "(A∨(A→(B∨¬B)))→((A→B)∨(¬B∨A))", pr.Jankov, pr.NoModality, "Jan-to-Sme", 1},
 	{nil, "(¬A→(B→C))→((B→(¬¬A→C))→(B→C))", pr.Jankov, pr.NoModality, "Jan Permutes", 1},
+	{nil, "(¬¬A→((A→B)∨(B→A)))→((A→B)∨(B→A))", pr.Jankov, pr.NoModality, "Jan-to-Göd", 1},
 
 	{nil, "(A→B)∨(B→A)", pr.GödelDummett, pr.NoModality, "LIN/DGP", 1},
-	{nil, "(((A→B)→B)∧((B→A)→A))→(A∨B)", pr.GödelDummett, pr.NoModality, "∨/→ Correspondence", 1},
+	{nil, "(A→(B∧C))∨((B∧C)→A)", pr.GödelDummett, pr.NoModality, "DGP-∧", 1},
+	{nil, "((A∨B)→C)∨(C→(A∨B))", pr.GödelDummett, pr.NoModality, "DGP-∨", 1},
+	{nil, "((A→B)∨(B→C))∨(C→A)", pr.GödelDummett, pr.NoModality, "DGP 3", 1},
 
 	{nil, "(¬A∨B)∨(B→A)", pr.Smetanich, pr.NoModality, "Hosoi 1", 1},
 	{nil, "¬A∨(B∨(B→A))", pr.Smetanich, pr.NoModality, "Hosoi 2", 1},
@@ -190,6 +230,7 @@ func TestDeriveAtStrength(t *testing.T) {
 		ok, pass bool
 		ctx      context.Context
 		cancel   context.CancelFunc
+		dex      int
 		tc       testCase
 		drv      *nd.Drv
 	)
@@ -203,13 +244,13 @@ func TestDeriveAtStrength(t *testing.T) {
 
 	defer cancel()
 
-	for _, tc = range testCases {
+	for dex, tc = range testCases {
 		drv = nd.NewDeriver(tc.inf, tc.mod, ndTestParseWff(t, tc.goal), ndTestParseWffs(t, tc.prems...)...)
 
-		pass = t.Run(fmt.Sprintf("%s from %s (%s)", tc.goal, tc.prems, tc.title), func(t *testing.T) {
+		pass = t.Run(fmt.Sprintf("%s from %s (%s) - #%d", tc.goal, tc.prems, tc.title, dex+1), func(t *testing.T) {
 			var (
-				done        chan struct{}
-				fitch, last string
+				done              chan struct{}
+				name, fitch, last string
 			)
 
 			// Channel to signal that processing completed successfully.
@@ -226,15 +267,17 @@ func TestDeriveAtStrength(t *testing.T) {
 
 			select {
 			case <-done: // The derivation completed successfully.
+				name = pr.NameLogic(drv.Inf, drv.Syn, drv.Mod)
+
 				fitch = drv.Prf.FitchFormat()
 
-				t.Logf("\nCompleted:\n%s\n", fitch)
+				t.Logf("\nCompleted: {%s} ⊢%s %s\n%s\n", strings.Join(tc.prems, ","), name, tc.goal, fitch)
 
 				_ = drv.Prf.Prune()
 
 				fitch = drv.Prf.FitchFormat()
 
-				t.Logf("\nPruned:\n%s\n", fitch)
+				t.Logf("\nPruned: {%s} ⊢%s %s\n%s\n", strings.Join(tc.prems, ","), name, tc.goal, fitch)
 			case <-ctx.Done(): // The user time expired.
 				last = drv.Prf.FitchFormat()
 

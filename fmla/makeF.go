@@ -35,8 +35,6 @@ func newCompositeWff(sym Symbol, subL, subR *Wff, pv Predicate, av Argument) (wf
 			mop:  sym,
 			subL: subL.DeepCopy(),
 		}
-
-		wff.subL.sup = wff
 	case Vee, Wedge, To, Iff:
 		wff = &Wff{
 			kind: Binary,
@@ -44,8 +42,6 @@ func newCompositeWff(sym Symbol, subL, subR *Wff, pv Predicate, av Argument) (wf
 			subL: subL.DeepCopy(),
 			subR: subR.DeepCopy(),
 		}
-
-		wff.subL.sup, wff.subR.sup = wff, wff
 	case ForAll, Exists:
 		wff = &Wff{
 			kind: Quantified,
@@ -58,8 +54,6 @@ func newCompositeWff(sym Symbol, subL, subR *Wff, pv Predicate, av Argument) (wf
 		} else {
 			wff.av = av
 		}
-
-		wff.subL.sup = wff
 	}
 
 	wff.hash = hashWff(wff)

@@ -51,9 +51,7 @@ In Fitch-style proofs:
   - $A \vdash_{PPL} A \vee B$
   - $A \vdash_{PPL} B \vee A$
 - $\vee E$:
-  - $A \vee B, A \to C \vdash_{PPL} C \vee B$
-  - $A \vee B, B \to C \vdash_{PPL} A \vee C$
-  - $A \vee A, A \to B \vdash_{PPL} B$
+  - $A \vee B, A \to C, B \to C \vdash_{PPL} C$
 - $\leftrightarrow I$:
   - $A \to B, B \to A \vdash_{PPL} A \leftrightarrow B$
 - $\leftrightarrow E$:
@@ -74,24 +72,25 @@ In Fitch-style proofs:
 
 ### Jankov Propositional Logic (JPL) Rules
 
-JPL grants that $\vdash_{JPL} \forall \Phi(\neg \Phi \vee \neg \neg \Phi)$.
+$\text{IPL} + \forall \Phi(\neg \Phi \vee \neg \neg \Phi) = \text{JPL}$.
 
 - $Jan$:
-  - $\neg A \to B, \neg \neg A \to B \vdash_{JPL} B$
+  - $\neg A \to B, \neg \neg A \to C \vdash_{JPL} B \vee C$
+  - $\neg \neg A \to B, \neg A \to C \vdash_{JPL} B \vee C$
 
 ### Gödel-Dummett Propositional Logic (GPL) Rules
 
-GPL grants that $\vdash_{GPL} \forall \Phi \forall \Psi((\Phi \to \Psi) \vee (\Psi \to \Phi))$.
+$\text{IPL} + \forall \Phi \forall \Psi((\Phi \to \Psi) \vee (\Psi \to \Phi)) = \text{GPL}$
 
 - $Göd$:
-  - $(A \to B) \to C,(B \to A) \to C \vdash_{GPL} C$
+  - $(A \to B) \to C, (B \to A) \to D \vdash_{GPL} C \vee D$
 
 ### Smetanich Propositional Logic (SPL) Rules
 
-SPL grants that $\vdash_{SPL} \forall \Phi \forall \Psi((\Phi \to \Psi) \vee (\Phi \vee \neg \Psi))$.
+$\text{IPL} + \forall \Phi \forall \Psi((\neg \Phi \vee \Psi) \vee (\Psi \to \Phi)) = \text{SPL}$
 
 - $Sme$:
-  - $A \to C, \neg B \to C, (A \to B) \to C \vdash_{SPL} C$
+  - $\neg A \to B, (B \to A) \to C \vdash_{SPL} B \vee C$
 
 ### Classical Propositional Logic (CPL) Rules
 
@@ -292,3 +291,64 @@ This is also known as "constructive modal logic K" (CK).
   - $\Diamond A \vdash_{PPL+5} \Box \Diamond A$
 - $5E$:
   - $\Diamond \Box A \vdash_{PPL+5} \Box A$
+
+## Distribution/Reduction Rules
+
+Among $\{\to, \vee, \wedge, \leftrightarrow, \neg, \forall, \exists, \Box, \Diamond\}$, combinations are determined for independent operands in a given nesting. Each rule is derivable in exactly one weakest logic. In the ATP, they serve to reduce the net depths of subproofs and remove on-the-fly nested subproof explosion during rule applications.
+
+- $\text{For } \to$:
+  - $(I) \to O$
+    - $(\to)\to$:
+      - $(A \to B) \to C \vdash_{TPL} B \to (A \to B), B \to C$
+      - $(A \to B) \to C \vdash_{IPL} \neg A \to (A \to B), \neg A \to C$
+    - $(\vee)\to$:
+      - $(A \vee B) \to C \vdash_{PPL} A \to C, B \to C$
+    - $(\wedge)\to$:
+      - $(A \wedge B) \to C \vdash_{PPL} A \to (B \to C)$
+    - $(\leftrightarrow)\to$
+      - $(A \leftrightarrow B) \to C \vdash_{PPL} (A \to B) \to ((B \to A) \to C)$
+    - $(\neg)\to$:
+    - $(\neg\neg)\to$:
+      - $\neg \neg A \to B \vdash_{MPL} A \to \neg \neg A, A \to B$
+  - $O \to (I)$
+    - $\to(\to)$:
+      - $A \to (B \to C) \vdash_{TPL} B \to (A \to C)$
+    - $\to(\vee)$:
+      - $A \to (B \vee \neg C) \vdash_{JPL} (A \to B) \vee (A \to \neg C)$
+      - $A \to (\neg B \vee C) \vdash_{JPL} (A \to \neg B) \vee (A \to C)$
+      - $A \to (B \vee C) \vdash_{GPL} (A \to B) \vee (A \to C)$
+    - $\to(\wedge)$:
+      - $A \to (B \wedge C) \vdash_{PPL} A \to B, A \to C$
+    - $\to(\leftrightarrow)$
+      - $A \to (B \leftrightarrow C) \vdash_{PPL} A \to (B \to C), A \to (C \to B)$
+    - $\to(\neg)$
+      - $A \to \neg B \vdash_{MPL} B \to \neg A$
+- $\text{For } \vee$:
+  - $\vee E$ suffices. No need to distribute $A \vee B$
+- $\text{For } \wedge$:
+  - $\wedge E$ suffices. No need to distribute $A \wedge B$.
+- $\text{For } \leftrightarrow$:
+  - $\leftrightarrow E$ suffices. No need to distribute $A \leftrightarrow B$.
+- $\text{For } \neg$:
+  - $\neg (I)$:
+    - $\neg (\to)$:
+      - $\neg (A \to B) \vdash_{MPL} \neg B$
+      - $\neg (A \to B) \vdash_{IPL} \neg \neg A$
+    - $\neg(\vee)$:
+      - $\neg (A \vee B) \vdash_{MPL} \neg A, \neg B$
+    - $\neg(\wedge)$:
+      - $\neg (A \wedge B) \vdash_{MPL} A \to \neg B$
+    - $\neg(\leftrightarrow)$:
+      - $\neg (A \leftrightarrow B) \vdash_{MPL} A \to \neg B$
+  - $\neg \neg (I)$:
+    - $\neg \neg (\to)$:
+      - $\neg \neg (A \to B) \vdash_{MPL} \neg B \to \neg A$
+    - $\neg \neg (\vee)$:
+      - $\neg \neg (A \vee B) \vdash_{MPL} \neg A \to \neg \neg B$
+    - $\neg \neg (\wedge)$:
+      - $\neg \neg (A \wedge B) \vdash_{MPL} \neg \neg A, \neg \neg B$
+    - $\neg \neg (\leftrightarrow)$:
+      - $\neg \neg (A \leftrightarrow B) \vdash_{MPL} \neg A \leftrightarrow \neg B$
+  - $\neg \neg \neg (I)$:
+    - $\neg \neg \neg$:
+      - $\neg \neg \neg A \vdash_{MPL} \neg A$

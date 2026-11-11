@@ -236,18 +236,22 @@ func (prf *Prf) PrfsI() (prfsI iter.Seq[*Prf]) {
 	return
 }
 
-func allLeaves(prf *Prf) (prfsI []*Prf) {
+func allLeaves(prf *Prf, open bool) (prfsI []*Prf) {
 	var (
-		lenI int
 		prfI *Prf
+		has  bool
 	)
 
-	if lenI = len(prf.prfsI); lenI == 0 {
-		prfsI = []*Prf{prf}
-	} else {
-		for _, prfI = range prf.prfsI {
-			prfsI = append(prfsI, allLeaves(prfI)...)
+	for _, prfI = range prf.prfsI {
+		if !open || prfI.IsOpen() {
+			has = true
+
+			prfsI = append(prfsI, allLeaves(prfI, open)...)
 		}
+	}
+
+	if !has {
+		prfsI = []*Prf{prf}
 	}
 
 	return
@@ -278,12 +282,8 @@ func (prf *Prf) Leaves(depthM int, open bool) (leaves iter.Seq[*Prf]) {
 		prfsI []*Prf
 	)
 
-	prfsI = allLeaves(prf)
+	prfsI = allLeaves(prf, open)
 	prfsI = descendToDepthM(prfsI, depthM)
-
-	if open {
-		prfsI = slices.DeleteFunc(prfsI, func(prfI *Prf) (nix bool) { nix = !prfI.open; return })
-	}
 
 	leaves = func(yield func(*Prf) bool) {
 		var (

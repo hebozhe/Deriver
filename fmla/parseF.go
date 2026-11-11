@@ -334,7 +334,7 @@ func MustParseWff(s string) (wff *Wff) {
 	return
 }
 
-func ParseWffFromTemplate(tmp string, wffs ...*Wff) (wff *Wff, ok bool) {
+func ParseWffFmt(tmp string, wffs ...*Wff) (wff *Wff, ok bool) {
 	var (
 		lenW int
 		s    string
@@ -356,14 +356,14 @@ func ParseWffFromTemplate(tmp string, wffs ...*Wff) (wff *Wff, ok bool) {
 	return
 }
 
-func MustParseWffFromTemplate(tmp string, wffs ...*Wff) (wff *Wff) {
+func MustParseWffFmt(tmp string, wffs ...*Wff) (wff *Wff) {
 	var (
 		ok  bool
 		msg string
 		ss  []string
 	)
 
-	if wff, ok = ParseWffFromTemplate(tmp, wffs...); !ok {
+	if wff, ok = ParseWffFmt(tmp, wffs...); !ok {
 		for _, wff = range wffs {
 			ss = append(ss, wff.String())
 		}

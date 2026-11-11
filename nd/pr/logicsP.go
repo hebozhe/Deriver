@@ -108,7 +108,8 @@ func RuleFitsSynBreadth(rule NDRule, syn SynBreadth) (fits bool) {
 	switch rule {
 	case Solve, Prem, Ass:
 		fits = true
-	case TopI, ToI, ToE, Reit, Thm, WedgeI, WedgeE, VeeI, VeeE, IffI, IffE, BotI, BotE, NegI, NegE, Jan, Göd, Sme:
+	case TopI, ToI, ToE, Reit, Thm, WedgeI, WedgeE, VeeI, VeeE, IffI, IffE, BotI, BotE, NegI, NegE,
+		Jan, Göd, Sme:
 		fits = syn%PL == 0
 	case EqualI, EqualE:
 		fits = syn%(NL*I) == 0
